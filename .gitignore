@@ -1,6 +1,10 @@
 # Gradle
 .gradle/
 build/
+**/build/
+**/.gradle/
+**/run/
+**/run-data/
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
@@ -14,3 +18,7 @@ bin/
 # Logs e temporarios
 *.log
 *.tmp
+
+# Modelos locais GGUF
+models/
+*.gguf

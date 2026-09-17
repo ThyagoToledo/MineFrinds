@@ -1,0 +1,18 @@
+{
+  "itemGroup.companions": "Companions",
+  "entity.companions.companion": "Companion",
+  "item.companions.companion_contract": "Companion Contract",
+  "item.companions.companion_spawn_egg": "Companion Spawn Egg",
+  "message.companions.recruited": "Contract signed! Companion is now bound to you.",
+  "message.companions.mode_follow": "Companion is now following you.",
+  "message.companions.mode_stay": "Companion will stay here and wait.",
+  "message.companions.mode_defend": "Companion is in defensive stance.",
+  "dialogue.empty": "Did you say something?",
+  "dialogue.follow_ack": "Understood, I am following you.",
+  "dialogue.stay_ack": "I will stay here and wait.",
+  "dialogue.wood_ack": "I am gathering wood in the nearby area.",
+  "dialogue.deposit_ack": "I will store the collected items in the chest.",
+  "dialogue.quest_ack": "Let me inspect what is needed for our quest.",
+  "dialogue.unknown_ack": "I did not quite catch that. Can you repeat?",
+  "task.blocked.claim": "I cannot act here: this area is protected by {0}."
+}

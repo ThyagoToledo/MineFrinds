@@ -1,0 +1,22 @@
+[
+  {
+    "model": "Qwen2.5-0.5B-Instruct",
+    "mode": "CPU",
+    "load_ram_mb": 589.7,
+    "peak_ram_mb": 619.5,
+    "avg_latency_s": 1.17,
+    "p95_latency_s": 2.49,
+    "valid_json_rate": 100.0,
+    "intent_accuracy": 50.0
+  },
+  {
+    "model": "Qwen3-0.6B",
+    "mode": "CPU",
+    "load_ram_mb": 784.2,
+    "peak_ram_mb": 1064.2,
+    "avg_latency_s": 3.74,
+    "p95_latency_s": 4.44,
+    "valid_json_rate": 70.0,
+    "intent_accuracy": 20.0
+  }
+]

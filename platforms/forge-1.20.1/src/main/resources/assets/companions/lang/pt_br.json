@@ -1,0 +1,18 @@
+{
+  "itemGroup.companions": "Companheiros",
+  "entity.companions.companion": "Companheiro",
+  "item.companions.companion_contract": "Contrato de Companheiro",
+  "item.companions.companion_spawn_egg": "Ovo Gerador de Companheiro",
+  "message.companions.recruited": "Contrato assinado! O companheiro agora esta vinculado a voce.",
+  "message.companions.mode_follow": "O companheiro agora esta te seguindo.",
+  "message.companions.mode_stay": "O companheiro ficara aqui esperando.",
+  "message.companions.mode_defend": "O companheiro esta em postura defensiva.",
+  "dialogue.empty": "Voce disse alguma coisa?",
+  "dialogue.follow_ack": "Entendido, estou te seguindo.",
+  "dialogue.stay_ack": "Vou ficar aqui esperando.",
+  "dialogue.wood_ack": "Vou coletar madeira nos arredores.",
+  "dialogue.deposit_ack": "Vou guardar os itens coletados no bau.",
+  "dialogue.quest_ack": "Deixe-me verificar o que falta para a nossa missao.",
+  "dialogue.unknown_ack": "Nao entendi muito bem. Pode repetir?",
+  "task.blocked.claim": "Nao posso agir aqui: esta area esta protegida por {0}."
+}
