@@ -1,0 +1,161 @@
+<p align="center">
+  <img src="docs/assets/banner.png" alt="MineFriends Banner" width="850px" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);" />
+</p>
+
+# MineFriends
+
+<p align="center">
+  <a href="https://github.com/ThyagoToledo/MineFrinds"><img src="https://img.shields.io/badge/MineFriends-v0.1.0-00b4d8?style=for-the-badge" alt="MineFriends Version" /></a>
+  <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-17%20%2F%208-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" /></a>
+  <a href="https://files.minecraftforge.net/"><img src="https://img.shields.io/badge/Minecraft%20Forge-1.20.1-DFAD32?style=for-the-badge&logo=curseforge&logoColor=black" alt="Minecraft Forge" /></a>
+  <a href="https://neoforged.net/"><img src="https://img.shields.io/badge/NeoForge-1.21.1-EA6C24?style=for-the-badge&logo=neoforge&logoColor=white" alt="NeoForge" /></a>
+  <a href="https://gradle.org/"><img src="https://img.shields.io/badge/Gradle-8.8-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle" /></a>
+  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Tests-12%2F12%20Passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
+</p>
+
+---
+
+## Visao Geral
+
+O **MineFriends** e um mod para Minecraft Java focado em adicionar companheiros artificiais verdadeiramente uteis para a sua jornada. Desenvolvido com engenharia limpa e foco em estabilidade, o projeto preenche a lacuna de solidao no modo um jogador e adiciona aliados eficientes para servidores cooperativos e modpacks pesados.
+
+Ao contrario de bots convencionais que sobrecarregam o servidor ou quebram a imersao com acoes caoticas, o MineFriends adota uma arquitetura em camadas: as tomadas de decisao essenciais, o combate e o inventario sao processados de forma nativa e estavel na engine do jogo, enquanto a cognicao dialogica e adaptada de forma hibrida e leve para modelos pequenos (SLMs locais), garantindo respostas com 100% de precisao sem travar os 20 TPS do mundo.
+
+---
+
+## Principais Recursos
+
+- **Companheirismo e Auxilio Real**: Aliados capazes de seguir, aguardar em locais marcados, defender o jogador de monstros hostis e carregar suprimentos.
+- **Comunicacao Bilingue Nativa**: Interacao completa tanto em Portugues do Brasil (pt-BR) quanto em Ingles (en-US). Comandos por chat ou interface recebem respostas contextuais imediatas.
+- **Chamada Segura (Recall)**: Mecanica para solicitar que o companheiro se aproxime ou se teleporte com seguranca ate voce. O sistema realiza checagem de colisao, busca piso solido, respeita cooldowns e impede teleportes durante combates ativos.
+- **Visao Remota (Scouting Camera)**: Permite observar o mundo diretamente atraves dos olhos do seu companheiro enquanto o seu personagem permanece seguro. O modo conta com seguranca reativa, cancelando a visualizacao caso voce sofra qualquer tipo de dano.
+- **Inventario Persistente e Seguro**: Compartimento de 27 slots sincronizado via NBT oficial, eliminando qualquer risco de duplicacao ou perda de itens ao descarregar chunks ou fechar o jogo.
+- **Eficiencia de Memoria Rigorosa**: O mod opera com teto estrito de consumo: cerca de 1 GB em operacao continua e ate 2 GB em picos transientes, mantendo compatibilidade mesmo em computadores convencionais e placas graficas modernas com aceleracao Vulkan.
+
+---
+
+<details>
+<summary><b>Estrutura de Diretorios do Projeto</b></summary>
+
+```text
+MineFrinds/
+|-- core/
+|   |-- src/main/java/com/thyagotoledo/companions/core/
+|   |   |-- dialogue/       # Resolvedor bilingue de intencoes e provedor deterministico
+|   |   |-- locale/         # Servico de internacionalizacao pt-BR e en-US
+|   |   |-- model/          # DTOs, perfis de companheiro, snapshots de inventario e modos
+|   |   `-- planner/        # Catalogo de receitas, prioridades e filas de tarefas
+|   `-- src/test/java/      # Testes unitarios de contratos e regras puras Java 8
+|-- platforms/
+|   `-- forge-1.20.1/
+|       |-- src/main/java/com/thyagotoledo/companions/forge/
+|       |   |-- client/     # Renderizadores, modelos humanoides e Scouting Camera
+|       |   |-- entity/     # Entidade CompanionEntity, goals de IA e interacoes
+|       |   |-- network/    # Canal de pacotes C2S e S2C com protecao de sidedness
+|       |   `-- registry/   # Registros de entidades, itens e abas criativas
+|       `-- src/test/java/  # Testes de isolamento de sidedness e integridade do mod
+|-- doc/
+|   |-- 00_spec/            # Especificacao tecnica de arquitetura e contratos
+|   |-- 01_plan/            # Roadmap executavel de etapas (P0 a P9)
+|   |-- 02_design/          # Design visual de skins 64x64, interface e assets
+|   `-- 03_context/         # Relatorios de benchmark e analise de runtimes locais
+|-- docs/
+|   `-- assets/             # Banners, diagramas e recursos visuais do repositorio
+`-- README.md
+```
+
+</details>
+
+---
+
+<details>
+<summary><b>Como Compilar e Executar Localmente</b></summary>
+
+### Pre-requisitos
+- JDK 17 instalado e configurado no PATH.
+- Git.
+- Conexao ativa na primeira execucao para resolucao das dependencias do Forge MDK.
+
+### 1. Clonar o Repositorio
+```bash
+git clone https://github.com/ThyagoToledo/MineFrinds.git
+cd MineFrinds
+```
+
+### 2. Executar a Suite de Testes Automatizados
+```bash
+# Testes do modulo core (regras de negocio)
+./gradlew :core:test
+
+# Testes da plataforma Forge 1.20.1 (contratos e sidedness)
+cd platforms/forge-1.20.1
+./gradlew test
+```
+
+### 3. Gerar o Pacote JAR Oficial
+```bash
+cd platforms/forge-1.20.1
+./gradlew jar
+```
+O artefato compilado e reobfuscado estara disponivel no diretorio:
+`platforms/forge-1.20.1/build/libs/companions-0.1.0.jar`
+
+</details>
+
+---
+
+<details>
+<summary><b>Comandos, Intencoes e Comunicacao</b></summary>
+
+O companheiro compreende comandos falados diretamente no chat ou acionados via interface:
+
+| Intencao | Comando em Portugues | Comando em Ingles | Acao Executada |
+|---|---|---|---|
+| **Seguir** | `@Nome me segue` / `vem comigo` | `@Name follow me` / `walk with me` | O companheiro passa a seguir o dono mantendo distancia de conforto. |
+| **Aguardar** | `@Nome espera` / `fica aqui` / `para` | `@Name stay here` / `wait` / `sit` | O companheiro senta e permanece fixo no local. |
+| **Defender** | `@Nome defenda` / `fique alerta` | `@Name defend` / `protect` / `guard` | Postura de guarda, protegendo ativamente o dono contra ameacas hostis. |
+| **Recall** | `@Nome vem ca` / `chamar` / `puxar` | `@Name come here` / `recall` | Verifica o terreno ao redor e se aproxima com seguranca do jogador. |
+| **Visao Remota** | `@Nome visao` / `olhar` | `@Name remote view` / `scout` | Alterna a camera para os olhos do companheiro; aperte ESC para sair. |
+| **Status** | `@Nome status` / `relatorio` | `@Name status` / `report` | Informa os pontos de vida atuais, vida maxima e modo ativo. |
+| **Mochila** | `@Nome abrir mochila` / `inventario` | `@Name open backpack` / `inventory` | Disponibiliza o inventario compartilhado de 27 slots do companheiro. |
+
+Tambem e possivel alternar rapidamente entre os modos de postura clicando com o botao direito enquanto agachado (Shift + Clique Direito).
+
+</details>
+
+---
+
+<details>
+<summary><b>Hub de Documentacao e Engenharia</b></summary>
+
+Toda a especificacao tecnica, os estudos de hardware e os planos de portabilidade estao estruturados na pasta [`doc/`](doc/):
+
+- **[Plano Executavel por Etapas](doc/01_plan/minecraft-companheiros-plano.md)**: Roadmap do projeto detalhando marcos P0 a P9 com criterios de aceite comprovados.
+- **[Especificacao Tecnica de Arquitetura](doc/00_spec/minecraft-companheiros-arquitetura-tecnica.md)**: Contratos Java, isolamento de sidedness e integracoes com modpacks.
+- **[Design Visual, Interface e Assets](doc/02_design/minecraft-companheiros-interface-assets.md)**: Padroes de skins 64x64, paletas de cores, layout da GUI e camera de vigia.
+- **[Relatorio de Benchmark P0](doc/03_context/minecraft-companheiros-p0-relatorio-benchmark.md)**: Medicoes empiricas de memoria RAM e VRAM, latencias e validacao do modelo Qwen2.5-0.5B.
+- **[Pesquisa de IA e Runtimes](doc/03_context/minecraft-companheiros-pesquisa-ia-e-runtimes.md)**: Analise comparativa de runtimes Vulkan locais e frameworks embodied para Minecraft.
+
+</details>
+
+---
+
+## Autor
+
+<p align="center">
+  <a href="https://github.com/ThyagoToledo">
+    <img src="https://github.com/ThyagoToledo.png" width="110px" alt="ThyagoToledo" style="border: 2px solid #00f0ff; border-radius: 8px; box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);" />
+    <br />
+    <sub><b>ThyagoToledo</b></sub>
+  </a>
+</p>
+
+<p align="center">
+  Desenvolvido com dedicacao por <b>ThyagoToledo</b>.
+</p>
+
+---
+
+## Licenca
+
+Este projeto e disponibilizado sob os termos da licenca MIT. Consulte o arquivo [LICENSE.txt](platforms/forge-1.20.1/LICENSE.txt) para mais informacoes.
