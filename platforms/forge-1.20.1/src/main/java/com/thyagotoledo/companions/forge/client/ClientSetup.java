@@ -17,4 +17,14 @@ public final class ClientSetup {
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.COMPANION.get(), CompanionRenderer::new);
     }
+
+    @Mod.EventBusSubscriber(modid = CompanionsForgeMod.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+    public static final class ForgeEvents {
+        @SubscribeEvent
+        public static void onClientTick(net.minecraftforge.event.TickEvent.ClientTickEvent event) {
+            if (event.phase == net.minecraftforge.event.TickEvent.Phase.END) {
+                CompanionCameraManager.checkSafetyTick();
+            }
+        }
+    }
 }

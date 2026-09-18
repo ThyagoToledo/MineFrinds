@@ -3,10 +3,18 @@ package com.thyagotoledo.companions.forge.entity;
 import com.thyagotoledo.companions.core.dialogue.DeterministicDialogueProvider;
 import com.thyagotoledo.companions.core.locale.LocaleService;
 import com.thyagotoledo.companions.core.model.CompanionMode;
+import com.thyagotoledo.companions.core.model.CompanionProfile;
+import com.thyagotoledo.companions.core.model.InventorySnapshot;
+import com.thyagotoledo.companions.core.model.ItemSlot;
+import com.thyagotoledo.companions.core.model.Personality;
+import com.thyagotoledo.companions.forge.network.ClientboundFeedbackPacket;
+import com.thyagotoledo.companions.forge.network.CompanionsNetwork;
+import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -31,7 +39,12 @@ import net.minecraft.world.entity.ai.goal.target.OwnerHurtTargetGoal;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class CompanionEntity extends TamableAnimal {
     private final SimpleContainer inventory = new SimpleContainer(27);
@@ -39,6 +52,7 @@ public class CompanionEntity extends TamableAnimal {
     private String preferredLocale = LocaleService.PT_BR;
     private final LocaleService localeService = new LocaleService();
     private final DeterministicDialogueProvider dialogueProvider = new DeterministicDialogueProvider(localeService);
+    private long lastRecallGameTime = -100L;
 
     public CompanionEntity(EntityType<? extends TamableAnimal> entityType, Level level) {
         super(entityType, level);
@@ -218,5 +232,134 @@ public class CompanionEntity extends TamableAnimal {
     @Override
     public AgeableMob getBreedOffspring(ServerLevel serverLevel, AgeableMob mate) {
         return null;
+    }
+
+    public InventorySnapshot createInventorySnapshot() {
+        List<ItemSlot> slots = new ArrayList<>();
+        for (int i = 0; i < this.inventory.getContainerSize(); i++) {
+            ItemStack stack = this.inventory.getItem(i);
+            if (!stack.isEmpty()) {
+                slots.add(new ItemSlot(
+                        ForgeRegistries.ITEMS.getKey(stack.getItem()).toString(),
+                        stack.getCount()
+                ));
+            }
+        }
+        return new InventorySnapshot(slots, this.inventory.getContainerSize());
+    }
+
+    public boolean tryRecall(Player owner) {
+        if (owner == null) return false;
+        Level currentLevel = this.level();
+
+        if (currentLevel != owner.level()) {
+            String msg = localeService.translate(preferredLocale, "dialogue.recall_blocked_dimension");
+            owner.sendSystemMessage(Component.literal(msg));
+            return false;
+        }
+
+        if (this.getTarget() != null && this.getTarget().isAlive()) {
+            String msg = localeService.translate(preferredLocale, "dialogue.recall_blocked_combat");
+            owner.sendSystemMessage(Component.literal(msg));
+            return false;
+        }
+
+        long gameTime = currentLevel.getGameTime();
+        if (gameTime - lastRecallGameTime < 60L) {
+            return false;
+        }
+
+        BlockPos ownerPos = owner.blockPosition();
+        BlockPos safePos = null;
+
+        for (int dx = -2; dx <= 2 && safePos == null; dx++) {
+            for (int dz = -2; dz <= 2 && safePos == null; dz++) {
+                for (int dy = -1; dy <= 2 && safePos == null; dy++) {
+                    BlockPos candidate = ownerPos.offset(dx, dy, dz);
+                    BlockState floor = currentLevel.getBlockState(candidate);
+                    BlockState feet = currentLevel.getBlockState(candidate.above());
+                    BlockState head = currentLevel.getBlockState(candidate.above(2));
+
+                    if (floor.isSolidRender(currentLevel, candidate) && feet.isAir() && head.isAir()) {
+                        safePos = candidate.above();
+                    }
+                }
+            }
+        }
+
+        if (safePos == null) {
+            String msg = localeService.translate(preferredLocale, "dialogue.recall_blocked_hazard");
+            owner.sendSystemMessage(Component.literal(msg));
+            return false;
+        }
+
+        this.teleportTo(safePos.getX() + 0.5D, safePos.getY(), safePos.getZ() + 0.5D);
+        this.getNavigation().stop();
+        this.setOrderedToSit(false);
+        this.setMode(CompanionMode.FOLLOW);
+        this.lastRecallGameTime = gameTime;
+
+        String ack = localeService.translate(preferredLocale, "dialogue.recall_ack");
+        owner.sendSystemMessage(Component.literal(ack));
+        return true;
+    }
+
+    public void handleCommand(String command, Player sender) {
+        if (command == null || command.trim().isEmpty() || !this.isOwnedBy(sender)) return;
+
+        CompanionProfile coreProfile = new CompanionProfile(
+                this.getUUID(),
+                this.getOwnerUUID(),
+                this.getName().getString(),
+                this.mode,
+                Personality.BALANCED
+        );
+
+        var response = this.dialogueProvider.process(command, this.preferredLocale, coreProfile, createInventorySnapshot());
+        var intent = response.getIntent();
+
+        switch (intent.getType()) {
+            case FOLLOW_OWNER:
+                setMode(CompanionMode.FOLLOW);
+                break;
+            case STAY:
+                setMode(CompanionMode.STAY);
+                break;
+            case DEFEND:
+                setMode(CompanionMode.DEFEND);
+                break;
+            case RECALL:
+                tryRecall(sender);
+                return;
+            case REMOTE_VIEW:
+                if (sender instanceof ServerPlayer sp) {
+                    CompanionsNetwork.sendToPlayer(
+                            sp,
+                            new ClientboundFeedbackPacket(this.getUUID(), response.getSpeech(), true)
+                    );
+                }
+                return;
+            case REPORT_STATUS:
+                String statusMsg = localeService.translate(
+                        preferredLocale,
+                        "dialogue.status_report",
+                        String.valueOf((int) this.getHealth()),
+                        String.valueOf((int) this.getMaxHealth()),
+                        this.mode.name()
+                );
+                sender.sendSystemMessage(Component.literal(statusMsg));
+                return;
+            default:
+                break;
+        }
+
+        if (sender instanceof ServerPlayer sp) {
+            CompanionsNetwork.sendToPlayer(
+                    sp,
+                    new ClientboundFeedbackPacket(this.getUUID(), response.getSpeech(), false)
+            );
+        } else {
+            sender.sendSystemMessage(Component.literal(response.getSpeech()));
+        }
     }
 }

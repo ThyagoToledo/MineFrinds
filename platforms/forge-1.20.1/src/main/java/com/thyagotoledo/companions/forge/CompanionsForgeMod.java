@@ -1,6 +1,7 @@
 package com.thyagotoledo.companions.forge;
 
 import com.thyagotoledo.companions.forge.entity.CompanionEntity;
+import com.thyagotoledo.companions.forge.network.CompanionsNetwork;
 import com.thyagotoledo.companions.forge.registry.ModCreativeTabs;
 import com.thyagotoledo.companions.forge.registry.ModEntities;
 import com.thyagotoledo.companions.forge.registry.ModItems;
@@ -32,6 +33,7 @@ public final class CompanionsForgeMod {
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
+        event.enqueueWork(CompanionsNetwork::register);
         LOGGER.info("Companions Forge 1.20.1 common setup inicializado com sucesso.");
     }
 

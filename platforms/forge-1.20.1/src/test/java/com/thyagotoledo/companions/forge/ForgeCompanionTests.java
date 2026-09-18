@@ -53,6 +53,36 @@ public class ForgeCompanionTests {
         assertNotNull(followEn);
         assertFalse(followPt.isEmpty());
         assertFalse(followEn.isEmpty());
+
+        String recallPt = service.translate("pt_br", "dialogue.recall_ack");
+        String recallEn = service.translate("en_us", "dialogue.recall_ack");
+        assertNotNull(recallPt);
+        assertNotNull(recallEn);
+        assertFalse(recallPt.isEmpty());
+        assertFalse(recallEn.isEmpty());
+
+        String viewPt = service.translate("pt_br", "dialogue.remote_view_start");
+        String viewEn = service.translate("en_us", "dialogue.remote_view_start");
+        assertNotNull(viewPt);
+        assertNotNull(viewEn);
+        assertFalse(viewPt.isEmpty());
+        assertFalse(viewEn.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Validar contratos dos pacotes de rede C2S e S2C")
+    void testNetworkPacketContracts() {
+        java.util.UUID testUuid = java.util.UUID.randomUUID();
+        com.thyagotoledo.companions.forge.network.ServerboundCommandPacket c2s =
+                new com.thyagotoledo.companions.forge.network.ServerboundCommandPacket(testUuid, "@Nara vem ca");
+        assertEquals(testUuid, c2s.getCompanionUuid());
+        assertEquals("@Nara vem ca", c2s.getCommand());
+
+        com.thyagotoledo.companions.forge.network.ClientboundFeedbackPacket s2c =
+                new com.thyagotoledo.companions.forge.network.ClientboundFeedbackPacket(testUuid, "Estou a caminho", false);
+        assertEquals(testUuid, s2c.getCompanionUuid());
+        assertEquals("Estou a caminho", s2c.getSpeech());
+        assertFalse(s2c.isToggleRemoteView());
     }
 
     @Test

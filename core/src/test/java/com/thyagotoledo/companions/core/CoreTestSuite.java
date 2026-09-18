@@ -86,4 +86,67 @@ public class CoreTestSuite {
         assertTrue(TaskPriority.SELF_DEFENSE.isHigherThan(TaskPriority.MISSION_WORK));
         assertTrue(TaskPriority.OWNER_ORDER.isHigherThan(TaskPriority.IDLE_ROAM));
     }
+
+    @Test
+    public void testP2NewCommandsBilingual() {
+        InventorySnapshot emptyInv = new InventorySnapshot(Collections.emptyList(), 27);
+
+        DialogueResponse defendPt = dialogueProvider.process("defenda agora", "pt_br", profile, emptyInv);
+        assertEquals(IntentType.DEFEND, defendPt.getIntent().getType());
+        assertEquals("Estou em alerta, protegendo voce.", defendPt.getSpeech());
+
+        DialogueResponse defendEn = dialogueProvider.process("please defend", "en_us", profile, emptyInv);
+        assertEquals(IntentType.DEFEND, defendEn.getIntent().getType());
+        assertEquals("I am on alert, protecting you.", defendEn.getSpeech());
+
+        DialogueResponse recallPt = dialogueProvider.process("vem ca amigo", "pt_br", profile, emptyInv);
+        assertEquals(IntentType.RECALL, recallPt.getIntent().getType());
+        assertEquals("Estou a caminho, me aproximando agora.", recallPt.getSpeech());
+
+        DialogueResponse recallEn = dialogueProvider.process("come here please", "en_us", profile, emptyInv);
+        assertEquals(IntentType.RECALL, recallEn.getIntent().getType());
+        assertEquals("I am on my way, heading to you now.", recallEn.getSpeech());
+
+        DialogueResponse viewPt = dialogueProvider.process("quero ver sua visao", "pt_br", profile, emptyInv);
+        assertEquals(IntentType.REMOTE_VIEW, viewPt.getIntent().getType());
+        assertEquals("Transmitindo minha visao para voce.", viewPt.getSpeech());
+
+        DialogueResponse viewEn = dialogueProvider.process("remote view now", "en_us", profile, emptyInv);
+        assertEquals(IntentType.REMOTE_VIEW, viewEn.getIntent().getType());
+        assertEquals("Sharing my view with you.", viewEn.getSpeech());
+
+        DialogueResponse invPt = dialogueProvider.process("abrir mochila", "pt_br", profile, emptyInv);
+        assertEquals(IntentType.OPEN_INVENTORY, invPt.getIntent().getType());
+        assertEquals("Aqui esta minha mochila.", invPt.getSpeech());
+
+        DialogueResponse invEn = dialogueProvider.process("open backpack", "en_us", profile, emptyInv);
+        assertEquals(IntentType.OPEN_INVENTORY, invEn.getIntent().getType());
+        assertEquals("Here is my inventory.", invEn.getSpeech());
+
+        DialogueResponse statusPt = dialogueProvider.process("qual o seu status", "pt_br", profile, emptyInv);
+        assertEquals(IntentType.REPORT_STATUS, statusPt.getIntent().getType());
+
+        DialogueResponse statusEn = dialogueProvider.process("give me a report", "en_us", profile, emptyInv);
+        assertEquals(IntentType.REPORT_STATUS, statusEn.getIntent().getType());
+    }
+
+    @Test
+    public void testLanguageKeyParity() {
+        String[] requiredKeys = {
+                "dialogue.empty", "dialogue.follow_ack", "dialogue.stay_ack", "dialogue.defend_ack",
+                "dialogue.recall_ack", "dialogue.recall_blocked_combat", "dialogue.recall_blocked_dimension",
+                "dialogue.recall_blocked_hazard", "dialogue.remote_view_start", "dialogue.remote_view_stop",
+                "dialogue.inventory_open", "dialogue.status_report", "dialogue.wood_ack",
+                "dialogue.deposit_ack", "dialogue.quest_ack", "dialogue.unknown_ack", "task.blocked.claim"
+        };
+
+        for (String key : requiredKeys) {
+            String pt = localeService.translate("pt_br", key);
+            String en = localeService.translate("en_us", key);
+            assertNotEquals(key, pt, "Missing pt_br translation for " + key);
+            assertNotEquals(key, en, "Missing en_us translation for " + key);
+            assertFalse(pt.isEmpty());
+            assertFalse(en.isEmpty());
+        }
+    }
 }
