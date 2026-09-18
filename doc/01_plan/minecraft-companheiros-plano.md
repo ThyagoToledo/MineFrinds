@@ -122,11 +122,17 @@ Política inicial proposta: morte normal com drops uma única vez; sem recriaç�
 
 Aceite: mesmas ordens em português e inglês produzem o mesmo resultado; dois jogadores usam idiomas diferentes; dono, inventário e idioma persistem após reabrir; NPC não ataca aliados. Medir 1 e 4 NPCs antes de ampliar ações.
 
-### P3 — Trabalho no mundo e limites de permissão
+### P3 — Trabalho no mundo e limites de permissão (Concluído)
 
 Tecnologias: adaptadores de eventos, inventário/capabilities, PermissionService e executor Java; FakePlayer apenas onde necessário.
 
-Implementar área marcada, coletar madeira/minério visível, ferramenta e desgaste, quantidade-alvo, baú autorizado e crafting shaped/shapeless com estação. Forno pode entrar como subtarefa posterior desta fase. Validar proteções antes de cada interação; negação prevalece sobre a ordem do jogador. Inspecionar integração FTB Chunks disponível no Society antes de liberar ações destrutivas nesse pack.
+Status: Concluído e testado.
+Entregas:
+- Contratos de trabalho: `WorkArea`, `WorkTask` e `ToolType` no módulo core com contagem de coleta, raio de busca e cancelamento de tarefas.
+- Serviço de permissões: `PermissionService` (core) e `DefaultPermissionService`, complementados por `ForgePermissionService` que posta eventos `BlockEvent.BreakEvent` no `MinecraftForge.EVENT_BUS` para respeitar claims do FTB Chunks, Open Parties and Claims (OPAC) e Spawn Protection.
+- Planejador de crafting: `CraftingPlanner` no módulo core resolvendo árvores de requisitos e ingredientes faltantes com suporte a ferramentas e receitas intermediárias.
+- IA de trabalho no Forge 1.20.1: `CompanionHarvestGoal` integrado à `CompanionEntity`, com movimentação até o bloco, verificação de claims em tempo de execução, desgaste de ferramentas e fala de retorno ao jogador.
+- Testes: Suíte `:core:test` (9/9) e `:platforms:forge-1.20.1:test` (8/8) aprovadas. Build de JAR e reobfuscação bem-sucedidos.
 
 Aceite: testes com claim permitido/negado, inventário cheio, item com NBT, recipiente restante, alvo removido, caminho impossível, pedido duplicado e cancelamento durante ação. Inventário e drops precisam fechar a contagem; não fazer contorno silencioso de receitas ou permissões.
 

@@ -27,6 +27,10 @@ import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
+import com.thyagotoledo.companions.core.work.ToolType;
+import com.thyagotoledo.companions.core.work.WorkArea;
+import com.thyagotoledo.companions.core.work.WorkTask;
+import com.thyagotoledo.companions.forge.entity.ai.CompanionHarvestGoal;
 import net.minecraft.world.entity.ai.goal.FollowOwnerGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
@@ -53,6 +57,7 @@ public class CompanionEntity extends TamableAnimal {
     private final LocaleService localeService = new LocaleService();
     private final DeterministicDialogueProvider dialogueProvider = new DeterministicDialogueProvider(localeService);
     private long lastRecallGameTime = -100L;
+    private WorkTask activeWorkTask = null;
 
     public CompanionEntity(EntityType<? extends TamableAnimal> entityType, Level level) {
         super(entityType, level);
@@ -70,11 +75,12 @@ public class CompanionEntity extends TamableAnimal {
     protected void registerGoals() {
         this.goalSelector.addGoal(1, new FloatGoal(this));
         this.goalSelector.addGoal(2, new SitWhenOrderedToGoal(this));
-        this.goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.25D, true));
-        this.goalSelector.addGoal(4, new FollowOwnerGoal(this, 1.1D, 6.0F, 2.0F, false));
-        this.goalSelector.addGoal(5, new WaterAvoidingRandomStrollGoal(this, 0.8D));
-        this.goalSelector.addGoal(6, new LookAtPlayerGoal(this, Player.class, 8.0F));
-        this.goalSelector.addGoal(7, new RandomLookAroundGoal(this));
+        this.goalSelector.addGoal(3, new CompanionHarvestGoal(this));
+        this.goalSelector.addGoal(4, new MeleeAttackGoal(this, 1.25D, true));
+        this.goalSelector.addGoal(5, new FollowOwnerGoal(this, 1.1D, 6.0F, 2.0F, false));
+        this.goalSelector.addGoal(6, new WaterAvoidingRandomStrollGoal(this, 0.8D));
+        this.goalSelector.addGoal(7, new LookAtPlayerGoal(this, Player.class, 8.0F));
+        this.goalSelector.addGoal(8, new RandomLookAroundGoal(this));
 
         this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));
         this.targetSelector.addGoal(2, new OwnerHurtTargetGoal(this));
@@ -113,6 +119,22 @@ public class CompanionEntity extends TamableAnimal {
 
     public DeterministicDialogueProvider getDialogueProvider() {
         return this.dialogueProvider;
+    }
+
+    public WorkTask getActiveWorkTask() {
+        return this.activeWorkTask;
+    }
+
+    public void setActiveWorkTask(WorkTask activeWorkTask) {
+        this.activeWorkTask = activeWorkTask;
+    }
+
+    public void speakKey(String key, Object... args) {
+        LivingEntity owner = this.getOwner();
+        if (owner instanceof Player player) {
+            String text = this.localeService.translate(this.preferredLocale, key, args);
+            player.sendSystemMessage(Component.literal(text));
+        }
     }
 
     @Override
@@ -320,15 +342,19 @@ public class CompanionEntity extends TamableAnimal {
 
         switch (intent.getType()) {
             case FOLLOW_OWNER:
+                this.activeWorkTask = null;
                 setMode(CompanionMode.FOLLOW);
                 break;
             case STAY:
+                this.activeWorkTask = null;
                 setMode(CompanionMode.STAY);
                 break;
             case DEFEND:
+                this.activeWorkTask = null;
                 setMode(CompanionMode.DEFEND);
                 break;
             case RECALL:
+                this.activeWorkTask = null;
                 tryRecall(sender);
                 return;
             case REMOTE_VIEW:
@@ -349,6 +375,24 @@ public class CompanionEntity extends TamableAnimal {
                 );
                 sender.sendSystemMessage(Component.literal(statusMsg));
                 return;
+            case CHOP_WOOD:
+                int woodCount = intent.getQuantity() > 0 ? intent.getQuantity() : 16;
+                String woodTarget = intent.getTarget() != null ? intent.getTarget() : "minecraft:oak_log";
+                String dim = this.level().dimension().location().toString();
+                WorkArea woodArea = new WorkArea(dim, this.blockPosition().getX(), this.blockPosition().getY(), this.blockPosition().getZ(), 16);
+                this.setActiveWorkTask(new WorkTask("chop_wood", woodTarget, woodCount, ToolType.AXE, woodArea));
+                setMode(CompanionMode.WORK);
+                setOrderedToSit(false);
+                break;
+            case MINE_BLOCK:
+                int mineCount = intent.getQuantity() > 0 ? intent.getQuantity() : 16;
+                String mineTarget = intent.getTarget() != null ? intent.getTarget() : "minecraft:stone";
+                String mdim = this.level().dimension().location().toString();
+                WorkArea mineArea = new WorkArea(mdim, this.blockPosition().getX(), this.blockPosition().getY(), this.blockPosition().getZ(), 16);
+                this.setActiveWorkTask(new WorkTask("mine_block", mineTarget, mineCount, ToolType.PICKAXE, mineArea));
+                setMode(CompanionMode.WORK);
+                setOrderedToSit(false);
+                break;
             default:
                 break;
         }

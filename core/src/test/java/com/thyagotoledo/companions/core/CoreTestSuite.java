@@ -149,4 +149,66 @@ public class CoreTestSuite {
             assertFalse(en.isEmpty());
         }
     }
+
+    @Test
+    public void testPermissionServiceRestriction() {
+        com.thyagotoledo.companions.core.permissions.DefaultPermissionService permService =
+                new com.thyagotoledo.companions.core.permissions.DefaultPermissionService();
+        UUID owner = UUID.randomUUID();
+
+        assertTrue(permService.canBreakBlockAt(owner, "minecraft:overworld", 100, 64, 100));
+
+        permService.addRestrictedArea("minecraft:overworld", 100, 64, 100);
+        assertFalse(permService.canBreakBlockAt(owner, "minecraft:overworld", 100, 64, 100));
+        assertTrue(permService.canBreakBlockAt(owner, "minecraft:overworld", 101, 64, 100));
+
+        permService.removeRestrictedArea("minecraft:overworld", 100, 64, 100);
+        assertTrue(permService.canBreakBlockAt(owner, "minecraft:overworld", 100, 64, 100));
+    }
+
+    @Test
+    public void testWorkAreaAndTaskProgress() {
+        com.thyagotoledo.companions.core.work.WorkArea area =
+                new com.thyagotoledo.companions.core.work.WorkArea("minecraft:overworld", 0, 64, 0, 16);
+
+        assertTrue(area.contains("minecraft:overworld", 10, 64, -10));
+        assertFalse(area.contains("minecraft:overworld", 20, 64, 0));
+        assertFalse(area.contains("minecraft:the_nether", 0, 64, 0));
+
+        com.thyagotoledo.companions.core.work.WorkTask task =
+                new com.thyagotoledo.companions.core.work.WorkTask("harvest_logs", "minecraft:oak_log", 8, com.thyagotoledo.companions.core.work.ToolType.AXE, area);
+
+        assertFalse(task.isCompleted());
+        assertEquals(8, task.getRemainingCount());
+
+        task.recordHarvest(5);
+        assertEquals(3, task.getRemainingCount());
+        assertFalse(task.isCompleted());
+
+        task.recordHarvest(3);
+        assertEquals(0, task.getRemainingCount());
+        assertTrue(task.isCompleted());
+
+        task.cancel();
+        assertTrue(task.isCancelled());
+    }
+
+    @Test
+    public void testCraftingPlanner() {
+        RecipeCatalog catalog = new RecipeCatalog();
+        catalog.registerRecipe(new RecipeRequirement(
+                "minecraft:oak_planks",
+                new ItemSlot("minecraft:oak_planks", 4),
+                Collections.singletonList(new ItemSlot("minecraft:oak_log", 1))
+        ));
+
+        CraftingPlanner planner = new CraftingPlanner(catalog);
+
+        InventorySnapshot emptyInv = new InventorySnapshot(Collections.emptyList(), 27);
+        assertFalse(planner.canCraft("minecraft:oak_planks", 4, emptyInv));
+
+        ItemSlot logSlot = new ItemSlot("minecraft:oak_log", 2);
+        InventorySnapshot filledInv = new InventorySnapshot(Collections.singletonList(logSlot), 27);
+        assertTrue(planner.canCraft("minecraft:oak_planks", 4, filledInv));
+    }
 }

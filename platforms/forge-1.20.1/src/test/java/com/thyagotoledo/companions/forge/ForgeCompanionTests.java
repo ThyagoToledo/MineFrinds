@@ -136,4 +136,60 @@ public class ForgeCompanionTests {
             }
         }
     }
+
+    @Test
+    @DisplayName("Validar servico de permissoes e contratos de trabalho da Etapa P3")
+    void testP3WorkTaskAndPermissions() {
+        com.thyagotoledo.companions.core.permissions.DefaultPermissionService permService =
+                new com.thyagotoledo.companions.core.permissions.DefaultPermissionService();
+        java.util.UUID testOwner = java.util.UUID.randomUUID();
+
+        // Sem areas restritas, permissao deve ser concedida
+        assertTrue(permService.canBreakBlockAt(testOwner, "minecraft:overworld", 100, 64, 100));
+        assertTrue(permService.canInteractAt(testOwner, "minecraft:overworld", 100, 64, 100));
+
+        // Registro de area restrita
+        permService.addRestrictedArea("minecraft:overworld", 100, 64, 100);
+
+        // Bloqueio na posicao restrita
+        assertFalse(permService.canBreakBlockAt(testOwner, "minecraft:overworld", 100, 64, 100));
+        assertFalse(permService.canInteractAt(testOwner, "minecraft:overworld", 100, 64, 100));
+
+        // Liberacao apos remocao
+        permService.removeRestrictedArea("minecraft:overworld", 100, 64, 100);
+        assertTrue(permService.canBreakBlockAt(testOwner, "minecraft:overworld", 100, 64, 100));
+
+        // WorkTask e ToolType
+        com.thyagotoledo.companions.core.work.WorkArea area =
+                new com.thyagotoledo.companions.core.work.WorkArea("minecraft:overworld", 0, 64, 0, 16);
+        com.thyagotoledo.companions.core.work.WorkTask task =
+                new com.thyagotoledo.companions.core.work.WorkTask("task_harvest_1", "minecraft:oak_log", 10, com.thyagotoledo.companions.core.work.ToolType.AXE, area);
+
+        assertEquals("minecraft:oak_log", task.getTargetBlockId());
+        assertEquals(com.thyagotoledo.companions.core.work.ToolType.AXE, task.getRequiredTool());
+        assertEquals(10, task.getTargetCount());
+        assertFalse(task.isCompleted());
+        assertFalse(task.isCancelled());
+
+        task.recordHarvest(5);
+        assertEquals(5, task.getCollectedCount());
+        assertFalse(task.isCompleted());
+
+        task.recordHarvest(5);
+        assertEquals(10, task.getCollectedCount());
+        assertTrue(task.isCompleted());
+    }
+
+    @Test
+    @DisplayName("Validar mensagens de claims e coleta no sistema de internacionalizacao")
+    void testP3ClaimLocalization() {
+        LocaleService service = new LocaleService();
+        String ptClaim = service.translate("pt_br", "task.blocked.claim", "FTB Chunks");
+        String enClaim = service.translate("en_us", "task.blocked.claim", "FTB Chunks");
+
+        assertTrue(ptClaim.contains("FTB Chunks"));
+        assertTrue(ptClaim.contains("protegida"));
+        assertTrue(enClaim.contains("FTB Chunks"));
+        assertTrue(enClaim.contains("protected"));
+    }
 }

@@ -13,6 +13,16 @@ public final class RecipeCatalog {
         recipesByOutput.computeIfAbsent(recipe.getOutput().getItemId(), k -> new ArrayList<>()).add(recipe);
     }
 
+    public RecipeRequirement getRecipe(String targetItemId) {
+        List<RecipeRequirement> list = recipesByOutput.get(targetItemId);
+        return (list != null && !list.isEmpty()) ? list.get(0) : null;
+    }
+
+    public List<RecipeRequirement> getRecipes(String targetItemId) {
+        List<RecipeRequirement> list = recipesByOutput.get(targetItemId);
+        return list != null ? Collections.unmodifiableList(list) : Collections.emptyList();
+    }
+
     public List<ItemSlot> calculateMissingIngredients(String targetItemId, int requiredCount, InventorySnapshot inventory) {
         int inInventory = inventory.countItem(targetItemId);
         int remainingNeeded = requiredCount - inInventory;
