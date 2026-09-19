@@ -2,9 +2,12 @@ package com.thyagotoledo.companions.neoforge.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.neoforge.client.skin.SkinCacheManager;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
+import com.thyagotoledo.companions.neoforge.entity.player.CompanionServerPlayer;
+import com.thyagotoledo.companions.neoforge.tensura.TensuraCompanionStats;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -15,14 +18,20 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.ServerChatEvent;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
+import java.util.Locale;
 
 /**
- * Arvore completa de comandos para o mod Companions:
- * /companion spawn, /companion recall, /companion skin, /skin, /companion help e /companion gui.
+ * Arvore completa de comandos e manipulador de eventos de chat para o mod Companions:
+ * - /companion spawn, /companion lan, /companion recall, /companion dismiss
+ * - /companion mode <follow|stay|defend>, /companion action <wood|mine>
+ * - /companion inventory, /companion deposit, /companion view
+ * - /companion skin <nome>, /skin <nome>
+ * - /companion tensura <status|name>
+ * - Ouvinte de chat em tempo real (ServerChatEvent) para comandos de voz.
  */
 public class CompanionCommands {
 
@@ -74,6 +83,29 @@ public class CompanionCommands {
                         .then(Commands.literal("dismiss")
                                 .executes(ctx -> executeDismiss(ctx.getSource()))
                         )
+                        .then(Commands.literal("mode")
+                                .then(Commands.literal("follow").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.FOLLOW)))
+                                .then(Commands.literal("stay").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.STAY)))
+                                .then(Commands.literal("defend").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.DEFEND)))
+                        )
+                        .then(Commands.literal("action")
+                                .then(Commands.literal("wood").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WOOD)))
+                                .then(Commands.literal("mine").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.MINE)))
+                        )
+                        .then(Commands.literal("inventory")
+                                .executes(ctx -> executeInventory(ctx.getSource()))
+                        )
+                        .then(Commands.literal("deposit")
+                                .executes(ctx -> executeDeposit(ctx.getSource()))
+                        )
+                        .then(Commands.literal("view")
+                                .executes(ctx -> executeView(ctx.getSource()))
+                        )
+                        .then(Commands.literal("chat")
+                                .then(Commands.argument("msg", StringArgumentType.greedyString())
+                                        .executes(ctx -> executeChat(ctx.getSource(), StringArgumentType.getString(ctx, "msg")))
+                                )
+                        )
                         .then(Commands.literal("skin")
                                 .executes(ctx -> executeSkin(ctx.getSource(), "reset"))
                                 .then(Commands.argument("nome", StringArgumentType.word())
@@ -81,9 +113,18 @@ public class CompanionCommands {
                                         .executes(ctx -> executeSkin(ctx.getSource(), StringArgumentType.getString(ctx, "nome")))
                                 )
                         )
+                        .then(Commands.literal("tensura")
+                                .then(Commands.literal("status").executes(ctx -> executeTensuraStatus(ctx.getSource())))
+                                .then(Commands.literal("name")
+                                        .executes(ctx -> executeTensuraName(ctx.getSource(), null))
+                                        .then(Commands.argument("nome", StringArgumentType.greedyString())
+                                                .executes(ctx -> executeTensuraName(ctx.getSource(), StringArgumentType.getString(ctx, "nome")))
+                                        )
+                                )
+                        )
         );
 
-        // Atalho: /companions
+        // Atalhos Globais
         dispatcher.register(
                 Commands.literal("companions")
                         .executes(ctx -> {
@@ -92,7 +133,6 @@ public class CompanionCommands {
                         })
         );
 
-        // Atalho Global: /skin <nome>
         dispatcher.register(
                 Commands.literal("skin")
                         .executes(ctx -> executeSkin(ctx.getSource(), "reset"))
@@ -102,7 +142,6 @@ public class CompanionCommands {
                         )
         );
 
-        // Atalho de Ajuda: /help companions
         dispatcher.register(
                 Commands.literal("help")
                         .then(Commands.literal("companions")
@@ -175,6 +214,75 @@ public class CompanionCommands {
         }
     }
 
+    private static int executeSetMode(CommandSourceStack source, CompanionMode mode) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        companion.setMode(mode);
+        String desc = switch (mode) {
+            case FOLLOW -> "Seguir o jogador";
+            case STAY -> "Aguardar no local (Ficar aqui)";
+            case DEFEND -> "Postura defensiva de guarda";
+            case WOOD -> "Coleta de madeira nas proximidades";
+            case MINE -> "Mineracao de minerios nas proximidades";
+            default -> mode.name();
+        };
+
+        source.sendSuccess(() -> Component.literal("Modo do companheiro alterado para: " + desc), true);
+        companion.speakToOwner("Modo alterado para: " + desc + ".");
+        return 1;
+    }
+
+    private static int executeInventory(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        companion.openCompanionInventory(player);
+        return 1;
+    }
+
+    private static int executeDeposit(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        int moved = companion.depositToNearbyChest();
+        source.sendSuccess(() -> Component.literal("Companheiro descarregou " + moved + " itens em bau proximo."), true);
+        return 1;
+    }
+
+    private static int executeView(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        player.setCamera(companion);
+        source.sendSuccess(() -> Component.literal("Visualizando pelos olhos de " + companion.getName().getString() + ". Pressione F5 ou Shift para sair."), false);
+        return 1;
+    }
+
     private static int executeSkin(CommandSourceStack source, String skinName) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
@@ -182,10 +290,8 @@ public class CompanionCommands {
             return 0;
         }
 
-        NeoForgeCompanionEntity companion = CompanionManager.getOrCreateCompanion(player.getUUID(), null);
-
         if (skinName.equalsIgnoreCase("reset") || skinName.equalsIgnoreCase("self") || skinName.equalsIgnoreCase("player")) {
-            companion.setCustomSkin("");
+            CompanionManager.updateCompanionSkin(player, "reset");
             source.sendSuccess(() -> Component.literal("Aparencia do companheiro redefinida para a sua skin original de jogador."), true);
             return 1;
         }
@@ -195,11 +301,157 @@ public class CompanionCommands {
             return 0;
         }
 
-        companion.setCustomSkin(skinName);
-        SkinCacheManager.getOrFetchSkin(skinName);
-
-        source.sendSuccess(() -> Component.literal("Skin do companheiro alterada para: " + skinName + ". Baixando e aplicando textura..."), true);
+        CompanionManager.updateCompanionSkin(player, skinName);
+        source.sendSuccess(() -> Component.literal("Skin do companheiro alterada para: " + skinName + "."), true);
         return 1;
+    }
+
+    private static int executeChat(CommandSourceStack source, String message) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null || message == null || message.trim().isEmpty()) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        processDirectOrder(player, companion, message.trim());
+        return 1;
+    }
+
+    private static int executeTensuraStatus(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        NeoForgeCompanionEntity dataEntity = companion != null ? companion.getDataEntity() : CompanionManager.getCompanionForOwner(player.getUUID());
+
+        if (dataEntity != null && dataEntity.getTensuraStats() != null) {
+            TensuraCompanionStats stats = dataEntity.getTensuraStats();
+            source.sendSuccess(() -> Component.literal("=== STATUS TENSURA DO COMPANHEIRO ==="), false);
+            source.sendSuccess(() -> Component.literal("Nome: " + dataEntity.getName()), false);
+            source.sendSuccess(() -> Component.literal("Raca: " + stats.getRace().getDisplayName("pt_br")), false);
+            source.sendSuccess(() -> Component.literal("Rank: " + stats.getRank()), false);
+            source.sendSuccess(() -> Component.literal("EP: " + stats.getExistenceValue() + " | Magiculas: " + (int) stats.getMagicule()), false);
+        } else {
+            source.sendSuccess(() -> Component.literal("Status: O modpack atual esta em modo Vanilla (sem estatisticas de Tensura)."), false);
+        }
+        return 1;
+    }
+
+    private static int executeTensuraName(CommandSourceStack source, String name) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        NeoForgeCompanionEntity dataEntity = companion != null ? companion.getDataEntity() : CompanionManager.getCompanionForOwner(player.getUUID());
+
+        if (dataEntity != null && dataEntity.getTensuraStats() != null) {
+            String newName = (name != null && !name.trim().isEmpty()) ? name.trim() : "Benimaru";
+            boolean success = dataEntity.getTensuraStats().bestowName(newName);
+            if (success) {
+                source.sendSuccess(() -> Component.literal("Cerimonia de Nomear concluida! O companheiro agora se chama " + newName + " e sua raca evoluiu para " + dataEntity.getTensuraStats().getRace().getDisplayName("pt_br") + "!"), true);
+            } else {
+                source.sendFailure(Component.literal("O companheiro ja recebeu um nome anteriormente ou o nome fornecido e invalido."));
+            }
+        } else {
+            source.sendFailure(Component.literal("A cerimonia de nomear requer o modpack Tensura Neo Otherworld ativo."));
+        }
+        return 1;
+    }
+
+    /**
+     * Ouvinte global de eventos de chat do servidor.
+     * Intercepta mensagens enviadas pelo dono e comanda o companheiro de forma inteligente.
+     */
+    @SubscribeEvent
+    public static void onServerChat(ServerChatEvent event) {
+        ServerPlayer player = event.getPlayer();
+        if (player == null) return;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) return;
+
+        String rawText = event.getRawText();
+        if (rawText == null || rawText.trim().isEmpty()) return;
+
+        boolean handled = processDirectOrder(player, companion, rawText.trim());
+        if (handled) {
+            // Ordem compreendida com sucesso
+        }
+    }
+
+    private static boolean processDirectOrder(ServerPlayer player, CompanionServerPlayer companion, String rawText) {
+        String lower = rawText.toLowerCase(Locale.ROOT);
+
+        if (lower.contains("me segue") || lower.contains("vem comigo") || lower.equals("follow") || lower.equals("seguir")) {
+            companion.setMode(CompanionMode.FOLLOW);
+            companion.speakToOwner("Entendido! Estou te seguindo.");
+            return true;
+        }
+
+        if (lower.contains("fica aqui") || lower.contains("espera") || lower.equals("stay") || lower.equals("parar")) {
+            companion.setMode(CompanionMode.STAY);
+            companion.speakToOwner("Certo! Vou aguardar aqui nesta posicao.");
+            return true;
+        }
+
+        if (lower.contains("defenda") || lower.contains("proteja") || lower.equals("defend") || lower.contains("guarda")) {
+            companion.setMode(CompanionMode.DEFEND);
+            companion.speakToOwner("Postura de combate ativada! Vou te proteger de monstros.");
+            return true;
+        }
+
+        if (lower.contains("pega madeira") || lower.contains("corta madeira") || lower.contains("coleta madeira") || lower.equals("wood")) {
+            companion.setMode(CompanionMode.WOOD);
+            companion.speakToOwner("Iniciando coleta de madeira nas proximidades!");
+            return true;
+        }
+
+        if (lower.contains("minerar") || lower.contains("pega minerio") || lower.equals("mine") || lower.contains("mina")) {
+            companion.setMode(CompanionMode.MINE);
+            companion.speakToOwner("Iniciando mineracao de minerios proximos!");
+            return true;
+        }
+
+        if (lower.contains("vem ca") || lower.contains("venha aqui") || lower.equals("recall")) {
+            companion.recallToOwner();
+            companion.speakToOwner("Ja cheguei ao seu lado!");
+            return true;
+        }
+
+        if (lower.contains("guardar") || lower.contains("deposito") || lower.contains("bau")) {
+            companion.depositToNearbyChest();
+            return true;
+        }
+
+        if (lower.contains("inventario") || lower.contains("mochila") || lower.contains("bolsa")) {
+            companion.openCompanionInventory(player);
+            return true;
+        }
+
+        if (lower.contains("visao") || lower.contains("olhar") || lower.contains("camera")) {
+            player.setCamera(companion);
+            companion.speakToOwner("Conectado a visao remota. Pressione F5 ou Shift para sair.");
+            return true;
+        }
+
+        // Se o jogador estiver conversando diretamente
+        if (lower.startsWith("ei ") || lower.startsWith("companheiro") || lower.endsWith("?")) {
+            NeoForgeCompanionEntity dataEntity = companion.getDataEntity();
+            if (dataEntity != null && dataEntity.getDialogueProvider() != null) {
+                dataEntity.getDialogueProvider().processAsync(rawText, "pt_br", null, null)
+                        .thenAccept(response -> {
+                            if (response != null && response.getSpeech() != null) {
+                                companion.speakToOwner(response.getSpeech());
+                            }
+                        });
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static void sendHelpMessage(CommandSourceStack source) {
@@ -208,14 +460,19 @@ public class CompanionCommands {
         source.sendSuccess(() -> Component.literal("  - Pressione a tecla C a qualquer momento durante o jogo."), false);
         source.sendSuccess(() -> Component.literal("  - Ou clique no icone [C] na lateral do seu inventario (tecla E)."), false);
         source.sendSuccess(() -> Component.literal("  - Ou digite /companion gui."), false);
-        source.sendSuccess(() -> Component.literal("Comandos Principais:"), false);
+        source.sendSuccess(() -> Component.literal("Comandos de Acao e Modos:"), false);
         source.sendSuccess(() -> createClickableCommand("/companion spawn [nome]", "Invoca o companheiro como jogador oficial no servidor", "/companion spawn "), false);
         source.sendSuccess(() -> createClickableCommand("/companion lan [nome]", "Abre o mundo para LAN e invoca o companheiro", "/companion lan "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion mode <follow|stay|defend>", "Altera o comportamento do companheiro", "/companion mode "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion action <wood|mine>", "Ordena coleta de madeira ou mineracao", "/companion action "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion inventory", "Abre a mochila de itens do companheiro", "/companion inventory"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion deposit", "Guarda itens coletados no bau mais proximo", "/companion deposit"), false);
         source.sendSuccess(() -> createClickableCommand("/companion recall", "Chama o companheiro para perto de voce", "/companion recall"), false);
         source.sendSuccess(() -> createClickableCommand("/companion dismiss", "Dispensa o companheiro do servidor", "/companion dismiss"), false);
-        source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Clique para personalizar a skin", "/skin "), false);
+        source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Altera a skin em tempo real (ex: Rimuru, Goku, Luffy)", "/skin "), false);
         source.sendSuccess(() -> createClickableCommand("/skin reset", "Restaura para a sua propria skin", "/skin reset"), false);
-        source.sendSuccess(() -> Component.literal("Dica: Voce tambem pode falar diretamente com ele digitando ordens no chat (ex: 'me segue', 'fica aqui', 'pega madeira', 'visao')."), false);
+        source.sendSuccess(() -> Component.literal("Comandos por Chat de Voz:"), false);
+        source.sendSuccess(() -> Component.literal("  Digite 'me segue', 'fica aqui', 'defenda', 'pega madeira', 'minerar', 'guardar' ou 'mochila'."), false);
         source.sendSuccess(() -> Component.literal("============================================"), false);
     }
 

@@ -27,11 +27,13 @@ public class ForgeCompanionTests {
     @Test
     @DisplayName("Validar modos de companheiro disponiveis")
     void testCompanionModes() {
-        assertEquals(5, CompanionMode.values().length);
+        assertEquals(7, CompanionMode.values().length);
         assertNotNull(CompanionMode.valueOf("FOLLOW"));
         assertNotNull(CompanionMode.valueOf("STAY"));
         assertNotNull(CompanionMode.valueOf("DEFEND"));
         assertNotNull(CompanionMode.valueOf("WORK"));
+        assertNotNull(CompanionMode.valueOf("WOOD"));
+        assertNotNull(CompanionMode.valueOf("MINE"));
         assertNotNull(CompanionMode.valueOf("IDLE"));
     }
 

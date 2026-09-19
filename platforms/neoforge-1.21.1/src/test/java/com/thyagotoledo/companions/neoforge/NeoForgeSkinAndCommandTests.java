@@ -111,9 +111,55 @@ public class NeoForgeSkinAndCommandTests {
 
         // Subcomandos de /companion
         assertNotNull(dispatcher.getRoot().getChild("companion").getChild("spawn"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("lan"));
         assertNotNull(dispatcher.getRoot().getChild("companion").getChild("recall"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("dismiss"));
         assertNotNull(dispatcher.getRoot().getChild("companion").getChild("skin"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("mode"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("mode").getChild("follow"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("mode").getChild("stay"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("mode").getChild("defend"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("action"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("action").getChild("wood"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("action").getChild("mine"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("inventory"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("deposit"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("view"));
+        assertNotNull(dispatcher.getRoot().getChild("companion").getChild("tensura"));
         assertNotNull(dispatcher.getRoot().getChild("companion").getChild("help"));
         assertNotNull(dispatcher.getRoot().getChild("companion").getChild("gui"));
+    }
+
+    @Test
+    @DisplayName("Validar catalogo de presets de skins oficiais e geracao de Base64")
+    void testSkinPresetCatalog() {
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Rimuru"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Goku"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Luffy"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Naruto"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Kirito"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Gojo"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Zoro"));
+        assertTrue(com.thyagotoledo.companions.core.skin.SkinPresetCatalog.hasPreset("Tanjiro"));
+
+        com.thyagotoledo.companions.core.skin.SkinPresetCatalog.PresetSkin rimuru =
+                com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("Rimuru");
+        assertNotNull(rimuru);
+        assertEquals("Rimuru", rimuru.getName());
+        assertTrue(rimuru.isSlim());
+        assertNotNull(rimuru.getBase64Value());
+        assertFalse(rimuru.getBase64Value().isEmpty());
+
+        com.thyagotoledo.companions.core.skin.SkinPresetCatalog.PresetSkin goku =
+                com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("goku");
+        assertNotNull(goku);
+        assertFalse(goku.isSlim());
+
+        // Modos novos WOOD e MINE
+        NeoForgeCompanionEntity companion = CompanionManager.spawnCompanion(UUID.randomUUID(), "Operario");
+        companion.setMode(CompanionMode.WOOD);
+        assertEquals(CompanionMode.WOOD, companion.getMode());
+        companion.setMode(CompanionMode.MINE);
+        assertEquals(CompanionMode.MINE, companion.getMode());
     }
 }

@@ -136,12 +136,12 @@ public class CompanionScreen extends Screen {
                 .tooltip(Tooltip.create(Component.literal("Abre o mundo para LAN e convoca o companheiro para jogar.")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Mochila"), b -> sendOrder("inventario"))
+        addRenderableWidget(Button.builder(Component.literal("Mochila"), b -> sendOrder("/companion inventory"))
                 .bounds(left + 14, top + 128, 48, btnH)
                 .tooltip(Tooltip.create(Component.literal("Acessa o inventario do companheiro.")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Guardar"), b -> sendOrder("deposito"))
+        addRenderableWidget(Button.builder(Component.literal("Guardar"), b -> sendOrder("/companion deposit"))
                 .bounds(left + 64, top + 128, 50, btnH)
                 .tooltip(Tooltip.create(Component.literal("Deposita drops e recursos no bau mais proximo.")))
                 .build());
@@ -156,39 +156,50 @@ public class CompanionScreen extends Screen {
 
         // Botoes de Acoes Rapidas (Coluna Direita)
         // Linha 1
-        addRenderableWidget(Button.builder(Component.literal("Me Seguir"), b -> sendOrder("me segue"))
+        addRenderableWidget(Button.builder(Component.literal("Me Seguir"), b -> sendOrder("/companion mode follow"))
                 .bounds(col1, top + 46, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Ordena ao companheiro que te acompanhe.")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Ficar Aqui"), b -> sendOrder("fica aqui"))
+        addRenderableWidget(Button.builder(Component.literal("Ficar Aqui"), b -> sendOrder("/companion mode stay"))
                 .bounds(col2, top + 46, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Ordena ao companheiro que aguarde no local.")))
                 .build());
 
         // Linha 2
-        addRenderableWidget(Button.builder(Component.literal("Defender"), b -> sendOrder("defenda"))
+        addRenderableWidget(Button.builder(Component.literal("Defender"), b -> sendOrder("/companion mode defend"))
                 .bounds(col1, top + 70, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Ativa postura de vigia e protecao defensiva.")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Puxar para Ca"), b -> sendOrder("vem ca"))
+        addRenderableWidget(Button.builder(Component.literal("Puxar para Ca"), b -> sendOrder("/companion recall"))
                 .bounds(col2, top + 70, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Chama o companheiro com seguranca para perto.")))
                 .build());
 
         // Linha 3
         addRenderableWidget(Button.builder(Component.literal("Visao Remota"), b -> {
-                    sendOrder("visao");
+                    sendOrder("/companion view");
                     this.onClose();
                 })
                 .bounds(col1, top + 94, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Visualiza pelos olhos do companheiro (camera de vigia).")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Pega Madeira"), b -> sendOrder("pega madeira"))
+        addRenderableWidget(Button.builder(Component.literal("Pega Madeira"), b -> sendOrder("/companion action wood"))
                 .bounds(col2, top + 94, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Ordena a coleta automatica de madeira florestal.")))
+                .build());
+
+        // Linha 4
+        addRenderableWidget(Button.builder(Component.literal("Minerar"), b -> sendOrder("/companion action mine"))
+                .bounds(col1, top + 118, btnW, btnH)
+                .tooltip(Tooltip.create(Component.literal("Ordena a busca e mineracao de minerios proximos.")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Ajuda / Info"), b -> sendOrder("/companion help"))
+                .bounds(col2, top + 118, btnW, btnH)
+                .tooltip(Tooltip.create(Component.literal("Exibe comandos e guia no chat.")))
                 .build());
 
         // Rodape: Caixa de Chat e Botao Enviar
@@ -306,12 +317,12 @@ public class CompanionScreen extends Screen {
 
         if (tensuraIntegrationActive) {
             // Botoes de Acao Exclusivos Tensura
-            addRenderableWidget(Button.builder(Component.literal("Status de Magiculas"), b -> sendOrder("status de magiculas"))
+            addRenderableWidget(Button.builder(Component.literal("Status de Magiculas"), b -> sendOrder("/companion tensura status"))
                     .bounds(left + 14, top + 130, 150, 20)
                     .tooltip(Tooltip.create(Component.literal("Consulta EP, Rank, Magiculas e Aura no modpack Tensura.")))
                     .build());
 
-            addRenderableWidget(Button.builder(Component.literal("Cerimonia de Nomear"), b -> sendOrder("nomear"))
+            addRenderableWidget(Button.builder(Component.literal("Cerimonia de Nomear"), b -> sendOrder("/companion tensura name"))
                     .bounds(left + 172, top + 130, 164, 20)
                     .tooltip(Tooltip.create(Component.literal("Concede nome ao companheiro, multiplicando EP e evoluindo sua raca.")))
                     .build());
@@ -331,7 +342,11 @@ public class CompanionScreen extends Screen {
         if (this.chatBox != null) {
             String text = this.chatBox.getValue().trim();
             if (!text.isEmpty()) {
-                sendOrder(text);
+                if (text.startsWith("/")) {
+                    sendOrder(text);
+                } else {
+                    sendOrder("/companion chat " + text);
+                }
                 this.chatBox.setValue("");
             }
         }

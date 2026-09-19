@@ -5,5 +5,7 @@ public enum CompanionMode {
     STAY,
     DEFEND,
     WORK,
+    WOOD,
+    MINE,
     IDLE
 }
