@@ -202,16 +202,13 @@ public class CompanionCommands {
         }
 
         boolean recalled = CompanionManager.recallPlayerCompanion(player);
-        if (!recalled) {
-            NeoForgeCompanionEntity companion = CompanionManager.getCompanionForOwner(player.getUUID());
-            if (companion == null) {
-                source.sendFailure(Component.literal("Voce ainda nao possui um companheiro. Use /companion spawn para invocar um."));
-                return 0;
-            }
+        if (recalled) {
+            source.sendSuccess(() -> Component.literal("Companheiro chamado com seguranca para perto de voce."), true);
+            return 1;
+        } else {
+            source.sendFailure(Component.literal("Nao foi possivel trazer o companheiro: verifique se ele esta em combate, sem chao seguro, em outra dimensao ou em cooldown."));
+            return 0;
         }
-
-        source.sendSuccess(() -> Component.literal("Companheiro chamado com seguranca para perto de voce."), true);
-        return 1;
     }
 
     private static int executeDismiss(CommandSourceStack source) {
@@ -323,6 +320,7 @@ public class CompanionCommands {
             return 0;
         }
 
+        source.sendSuccess(() -> Component.literal("[MineFriends] Modo experimental de crafting autonomo seguro ativado para " + quantity + "x " + item + "."), false);
         companion.executeAutonomousCraft(player, item, quantity);
         return 1;
     }

@@ -5,6 +5,7 @@ import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.core.planner.RecipeCatalog;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
+import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
@@ -15,6 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
@@ -58,8 +60,10 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     private final UUID ownerUuid;
     private final NeoForgeCompanionEntity dataEntity;
+    private NeoForgePermissionService permissionService;
     private CompanionMode mode = CompanionMode.FOLLOW;
     private int healCooldown = 0;
+    private long lastRecallGameTime = 0L;
 
     // Estado para tarefas ativas de trabalho (Madeira / Mineracao / Agricultura)
     private BlockPos targetWorkPos = null;
@@ -78,6 +82,10 @@ public class CompanionServerPlayer extends ServerPlayer {
         this.dataEntity = dataEntity;
         if (dataEntity != null) {
             this.mode = dataEntity.getMode();
+            this.permissionService = dataEntity.getPermissionService();
+        }
+        if (this.permissionService == null) {
+            this.permissionService = new NeoForgePermissionService();
         }
 
         // Modo Sobrevivencia oficial e subida fluida de blocos (passo de 1 bloco)
@@ -85,6 +93,38 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (this.getAttribute(Attributes.STEP_HEIGHT) != null) {
             this.getAttribute(Attributes.STEP_HEIGHT).setBaseValue(1.06);
         }
+    }
+
+    public NeoForgePermissionService getPermissionService() {
+        return permissionService;
+    }
+
+    public void setPermissionService(NeoForgePermissionService permissionService) {
+        this.permissionService = permissionService != null ? permissionService : new NeoForgePermissionService();
+    }
+
+    public boolean checkCanBreakBlock(BlockPos pos) {
+        if (pos == null || this.level() == null) return false;
+        String dimension = this.level().dimension().location().toString();
+        if (this.permissionService != null && !this.permissionService.canBreakBlockAt(this.ownerUuid, dimension, pos.getX(), pos.getY(), pos.getZ())) {
+            return false;
+        }
+        if (this.serverLevel() != null && !this.serverLevel().mayInteract(this, pos)) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean checkCanInteractBlock(BlockPos pos) {
+        if (pos == null || this.level() == null) return false;
+        String dimension = this.level().dimension().location().toString();
+        if (this.permissionService != null && !this.permissionService.canInteractAt(this.ownerUuid, dimension, pos.getX(), pos.getY(), pos.getZ())) {
+            return false;
+        }
+        if (this.serverLevel() != null && !this.serverLevel().mayInteract(this, pos)) {
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -378,6 +418,15 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
 
             if (workBreakTicks >= 20) {
+                // Valida protecao do bloco base
+                if (!checkCanBreakBlock(targetWorkPos)) {
+                    speakToOwner("Nao tenho permissao para quebrar madeira nesta area protegida!");
+                    targetWorkPos = null;
+                    workBreakTicks = 0;
+                    setMode(CompanionMode.FOLLOW);
+                    return;
+                }
+
                 // Destroi o bloco base
                 this.level().destroyBlock(targetWorkPos, true, this);
                 harvestedCount++;
@@ -387,6 +436,9 @@ public class CompanionServerPlayer extends ServerPlayer {
                 for (int i = 0; i < 16; i++) {
                     BlockState stateAbove = this.level().getBlockState(currentAbove);
                     if (!stateAbove.isAir() && (stateAbove.is(BlockTags.LOGS) || stateAbove.getBlock().getDescriptionId().contains("log"))) {
+                        if (!checkCanBreakBlock(currentAbove)) {
+                            break;
+                        }
                         this.level().destroyBlock(currentAbove, true, this);
                         harvestedCount++;
                         currentAbove = currentAbove.above();
@@ -446,6 +498,15 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
 
             if (workBreakTicks >= 25) {
+                // Valida protecao de mineracao
+                if (!checkCanBreakBlock(targetWorkPos)) {
+                    speakToOwner("Nao tenho permissao para minerar nesta area protegida!");
+                    targetWorkPos = null;
+                    workBreakTicks = 0;
+                    setMode(CompanionMode.FOLLOW);
+                    return;
+                }
+
                 this.level().destroyBlock(targetWorkPos, true, this);
                 harvestedCount++;
                 targetWorkPos = null;
@@ -502,6 +563,13 @@ public class CompanionServerPlayer extends ServerPlayer {
                     this.swing(InteractionHand.MAIN_HAND, true);
                 }
                 if (workBreakTicks >= 12) {
+                    if (!checkCanBreakBlock(targetWorkPos)) {
+                        speakToOwner("Nao tenho permissao para colher safras nesta area protegida!");
+                        targetWorkPos = null;
+                        workBreakTicks = 0;
+                        setMode(CompanionMode.FOLLOW);
+                        return;
+                    }
                     this.level().destroyBlock(targetWorkPos, true, this);
                     targetWorkPos = null;
                     workBreakTicks = 0;
@@ -510,6 +578,13 @@ public class CompanionServerPlayer extends ServerPlayer {
             // Se for terra arada vazia: replanta
             else if (state.is(Blocks.FARMLAND) && this.level().getBlockState(targetWorkPos.above()).isAir()) {
                 BlockPos plantPos = targetWorkPos.above();
+                if (!checkCanInteractBlock(plantPos)) {
+                    speakToOwner("Nao tenho permissao para plantar sementes nesta area protegida!");
+                    targetWorkPos = null;
+                    workBreakTicks = 0;
+                    setMode(CompanionMode.FOLLOW);
+                    return;
+                }
                 ItemStack seedStack = findSeedsInInventory();
                 if (seedStack != null && !seedStack.isEmpty()) {
                     BlockState cropState = getCropStateForSeed(seedStack.getItem());
@@ -669,6 +744,11 @@ public class CompanionServerPlayer extends ServerPlayer {
             return 0;
         }
 
+        if (!checkCanInteractBlock(chestPos)) {
+            speakToOwner("Nao tenho permissao para acessar o bau nesta area protegida!");
+            return 0;
+        }
+
         lookAtPosition(new Vec3(chestPos.getX() + 0.5, chestPos.getY() + 0.5, chestPos.getZ() + 0.5));
         this.swing(InteractionHand.MAIN_HAND, true);
 
@@ -821,77 +901,108 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     /**
-     * Sistema de Crafting Autonomo:
-     * Verifica inventario, procura no bau designado e, se faltar materiais, vai coletar na natureza!
+     * Sistema de Crafting Autonomo Transacional:
+     * Verifica inventario, procura no bau designado e, se faltar materiais, vai coletar na natureza.
+     * Garante conservacao estrita de itens sem duplicacao.
      */
     public void executeAutonomousCraft(ServerPlayer owner, String rawItemName, int count) {
+        if (count <= 0) count = 1;
         String query = rawItemName.toLowerCase(Locale.ROOT).trim();
         String targetItem = resolveRecipeName(query);
 
-        if (!RecipeCatalog.hasRecipe(targetItem)) {
-            speakToOwner("Nao sei como fabricar '" + rawItemName + "'. Receitas suportadas: picareta, espada, machado, tochas, bau, bancada, fornalha, tabuas, gravetos e pao.");
+        Item itemObj = getItemByRecipeId(targetItem);
+        if (itemObj == null) {
+            speakToOwner("Item desconhecido ou receita nao suportada: '" + rawItemName + "'. Operacao cancelada.");
             return;
         }
 
         // 1. Verifica se ja tem o item pronto na bolsa
-        Item itemObj = getItemByRecipeId(targetItem);
         int availableInBag = countItemInInventory(itemObj);
         if (availableInBag >= count) {
-            deliverItemToOwner(owner, itemObj, count);
+            ItemStack stack = withdrawItemFromInventory(itemObj, count);
+            deliverItemToOwner(owner, stack);
             speakToOwner("Ja tinha " + count + " " + rawItemName + " prontos na bolsa! Entreguei para voce.");
             return;
         }
 
-        // 2. Verifica no bau designado
+        // 2. Verifica no bau designado (respeitando protecao de claim)
         BlockPos chestPos = CompanionManager.getDesignatedChest(this.ownerUuid);
-        if (chestPos != null && this.level().getBlockEntity(chestPos) instanceof Container chest) {
-            int inChest = withdrawItemFromContainer(chest, itemObj, count);
-            if (inChest > 0) {
-                deliverItemToOwner(owner, itemObj, inChest);
-                speakToOwner("Peguei " + inChest + " " + rawItemName + " do nosso bau designado e entreguei para voce!");
-                if (inChest >= count) return;
+        if (chestPos != null) {
+            if (!checkCanInteractBlock(chestPos)) {
+                speakToOwner("Nao tenho permissao para acessar o bau designado nesta area protegida!");
+            } else if (this.level().getBlockEntity(chestPos) instanceof Container chest) {
+                int inChest = withdrawItemFromContainer(chest, itemObj, count);
+                if (inChest > 0) {
+                    deliverItemToOwner(owner, new ItemStack(itemObj, inChest));
+                    speakToOwner("Peguei " + inChest + " " + rawItemName + " do nosso bau designado e entreguei para voce!");
+                    if (inChest >= count) return;
+                }
             }
         }
 
-        // 3. Verifica ingredientes necessarios
-        boolean hasWood = countLogsInInventory() >= 2;
-        boolean hasStone = countCobbleInInventory() >= 3;
+        // 3. Calcula ingredientes necessarios para fabricacao
+        int logsNeeded = calculateLogsNeeded(targetItem, count);
+        int cobbleNeeded = calculateCobbleNeeded(targetItem, count);
+        int wheatNeeded = calculateWheatNeeded(targetItem, count);
 
-        if (targetItem.contains("wood") || targetItem.contains("planks") || targetItem.contains("stick") || targetItem.contains("chest") || targetItem.contains("table")) {
-            if (!hasWood) {
-                this.pendingCraftItem = targetItem;
-                this.pendingCraftCount = count;
-                setMode(CompanionMode.WOOD);
-                speakToOwner("Nao temos madeira suficiente na bolsa nem no bau. Vou coletar madeira na floresta agora para fabricar seu " + rawItemName + "!");
-                return;
+        // Se faltar na bolsa, tenta retirar ingredientes do bau designado
+        if (chestPos != null && checkCanInteractBlock(chestPos) && this.level().getBlockEntity(chestPos) instanceof Container chest) {
+            if (logsNeeded > 0 && countLogsInInventory() < logsNeeded) {
+                int missing = logsNeeded - countLogsInInventory();
+                withdrawItemTagFromContainer(chest, ItemTags.LOGS, missing);
             }
-        } else if (targetItem.contains("stone") || targetItem.contains("furnace")) {
-            if (!hasStone) {
-                this.pendingCraftItem = targetItem;
-                this.pendingCraftCount = count;
-                setMode(CompanionMode.MINE);
-                speakToOwner("Faltam pedras na bolsa e no bau. Vou minerar agora para fabricar seu " + rawItemName + "!");
-                return;
+            if (cobbleNeeded > 0 && countCobbleInInventory() < cobbleNeeded) {
+                int missing = cobbleNeeded - countCobbleInInventory();
+                withdrawItemFromContainer(chest, Items.COBBLESTONE, missing);
+            }
+            if (wheatNeeded > 0 && countWheatInInventory() < wheatNeeded) {
+                int missing = wheatNeeded - countWheatInInventory();
+                withdrawItemFromContainer(chest, Items.WHEAT, missing);
             }
         }
 
-        // 4. Se os materiais estao disponiveis, fabrica imediatamente
+        boolean hasWood = logsNeeded == 0 || countLogsInInventory() >= logsNeeded;
+        boolean hasStone = cobbleNeeded == 0 || countCobbleInInventory() >= cobbleNeeded;
+        boolean hasWheat = wheatNeeded == 0 || countWheatInInventory() >= wheatNeeded;
+
+        if (!hasWood) {
+            this.pendingCraftItem = targetItem;
+            this.pendingCraftCount = count;
+            setMode(CompanionMode.WOOD);
+            speakToOwner("Falta madeira (" + countLogsInInventory() + "/" + logsNeeded + " troncos). Vou coletar na floresta agora para fabricar seu " + rawItemName + "!");
+            return;
+        } else if (!hasStone) {
+            this.pendingCraftItem = targetItem;
+            this.pendingCraftCount = count;
+            setMode(CompanionMode.MINE);
+            speakToOwner("Falta pedra (" + countCobbleInInventory() + "/" + cobbleNeeded + " pedras). Vou minerar agora para fabricar seu " + rawItemName + "!");
+            return;
+        } else if (!hasWheat) {
+            this.pendingCraftItem = targetItem;
+            this.pendingCraftCount = count;
+            setMode(CompanionMode.FARM);
+            speakToOwner("Falta trigo (" + countWheatInInventory() + "/" + wheatNeeded + " trigos). Vou cultivar na fazenda agora para fabricar seu " + rawItemName + "!");
+            return;
+        }
+
+        // 4. Se os materiais estao disponiveis, fabrica atomicamente
         craftAndDeliver(owner, targetItem, count);
     }
 
     private boolean checkPendingCraftFulfillment(ServerPlayer owner) {
         if (pendingCraftItem == null) return false;
 
-        boolean canCraft = false;
-        if (pendingCraftItem.contains("wood") || pendingCraftItem.contains("planks") || pendingCraftItem.contains("stick") || pendingCraftItem.contains("chest") || pendingCraftItem.contains("table")) {
-            canCraft = countLogsInInventory() >= 2;
-        } else if (pendingCraftItem.contains("stone") || pendingCraftItem.contains("furnace")) {
-            canCraft = countCobbleInInventory() >= 3;
-        }
+        int count = pendingCraftCount > 0 ? pendingCraftCount : 1;
+        int logsNeeded = calculateLogsNeeded(pendingCraftItem, count);
+        int cobbleNeeded = calculateCobbleNeeded(pendingCraftItem, count);
+        int wheatNeeded = calculateWheatNeeded(pendingCraftItem, count);
+
+        boolean canCraft = (logsNeeded == 0 || countLogsInInventory() >= logsNeeded)
+                && (cobbleNeeded == 0 || countCobbleInInventory() >= cobbleNeeded)
+                && (wheatNeeded == 0 || countWheatInInventory() >= wheatNeeded);
 
         if (canCraft) {
             String item = pendingCraftItem;
-            int count = pendingCraftCount > 0 ? pendingCraftCount : 1;
             pendingCraftItem = null;
             pendingCraftCount = 0;
             craftAndDeliver(owner, item, count);
@@ -903,24 +1014,79 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     private void craftAndDeliver(ServerPlayer owner, String targetItem, int count) {
         Item itemObj = getItemByRecipeId(targetItem);
-        if (itemObj == null) return;
-
-        // Consome ingredientes da bolsa
-        if (targetItem.contains("wood") || targetItem.contains("planks") || targetItem.contains("stick") || targetItem.contains("chest") || targetItem.contains("table")) {
-            consumeLogs(2);
-        } else if (targetItem.contains("stone") || targetItem.contains("furnace")) {
-            consumeCobblestone(3);
+        if (itemObj == null) {
+            speakToOwner("Item desconhecido ou receita nao suportada: '" + targetItem + "'. Operacao cancelada.");
+            return;
         }
 
+        int logsNeeded = calculateLogsNeeded(targetItem, count);
+        int cobbleNeeded = calculateCobbleNeeded(targetItem, count);
+        int wheatNeeded = calculateWheatNeeded(targetItem, count);
+
+        // Pre-flight check de atomicidade
+        if (logsNeeded > 0 && countLogsInInventory() < logsNeeded) {
+            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
+            return;
+        }
+        if (cobbleNeeded > 0 && countCobbleInInventory() < cobbleNeeded) {
+            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
+            return;
+        }
+        if (wheatNeeded > 0 && countWheatInInventory() < wheatNeeded) {
+            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
+            return;
+        }
+
+        // Consome ingredientes estritamente na quantidade requerida
+        if (logsNeeded > 0) consumeLogs(logsNeeded);
+        if (cobbleNeeded > 0) consumeCobblestone(cobbleNeeded);
+        if (wheatNeeded > 0) consumeWheat(wheatNeeded);
+
+        // Produz e entrega com destino unico: NUNCA adiciona em ambos!
         ItemStack crafted = new ItemStack(itemObj, count);
-        this.getInventory().add(crafted);
-        deliverItemToOwner(owner, itemObj, count);
-        speakToOwner("Fabriquei " + count + " " + targetItem + " com os materiais coletados! Aqui esta.");
+        if (owner != null && owner.isAlive() && owner.level() == this.level()) {
+            deliverItemToOwner(owner, crafted);
+            speakToOwner("Fabriquei " + count + " " + targetItem + " e entreguei para voce!");
+        } else {
+            this.getInventory().add(crafted);
+            speakToOwner("Fabriquei " + count + " " + targetItem + " e guardei na minha bolsa.");
+        }
+    }
+
+    private int calculateLogsNeeded(String recipeId, int count) {
+        return switch (recipeId) {
+            case "oak_planks", "planks" -> (count + 3) / 4;
+            case "stick" -> (count + 7) / 8;
+            case "crafting_table" -> count;
+            case "chest" -> count * 2;
+            case "wooden_pickaxe", "wooden_axe" -> count * 2;
+            case "wooden_sword" -> Math.max(1, count);
+            case "torch" -> Math.max(1, (count + 7) / 8);
+            default -> 0;
+        };
+    }
+
+    private int calculateCobbleNeeded(String recipeId, int count) {
+        return switch (recipeId) {
+            case "stone_pickaxe" -> count * 3;
+            case "stone_sword" -> count * 2;
+            case "furnace" -> count * 8;
+            default -> 0;
+        };
+    }
+
+    private int calculateWheatNeeded(String recipeId, int count) {
+        return switch (recipeId) {
+            case "bread" -> count * 3;
+            default -> 0;
+        };
     }
 
     private String resolveRecipeName(String query) {
+        if (query.contains("picareta de ferro")) return "iron_pickaxe";
         if (query.contains("picareta de pedra")) return "stone_pickaxe";
         if (query.contains("picareta")) return "wooden_pickaxe";
+        if (query.contains("espada de ferro")) return "iron_sword";
         if (query.contains("espada de pedra")) return "stone_sword";
         if (query.contains("espada")) return "wooden_sword";
         if (query.contains("machado")) return "wooden_axe";
@@ -935,8 +1101,9 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private Item getItemByRecipeId(String recipeId) {
-        return switch (recipeId) {
-            case "oak_planks" -> Items.OAK_PLANKS;
+        String clean = recipeId.startsWith("minecraft:") ? recipeId.substring("minecraft:".length()) : recipeId;
+        return switch (clean) {
+            case "oak_planks", "planks" -> Items.OAK_PLANKS;
             case "stick" -> Items.STICK;
             case "crafting_table" -> Items.CRAFTING_TABLE;
             case "chest" -> Items.CHEST;
@@ -947,12 +1114,15 @@ public class CompanionServerPlayer extends ServerPlayer {
             case "iron_pickaxe" -> Items.IRON_PICKAXE;
             case "wooden_sword" -> Items.WOODEN_SWORD;
             case "stone_sword" -> Items.STONE_SWORD;
+            case "iron_sword" -> Items.IRON_SWORD;
+            case "wooden_axe" -> Items.WOODEN_AXE;
             case "bread" -> Items.BREAD;
-            default -> Items.OAK_PLANKS;
+            default -> null; // Elimina fallback espúrio de tabuas!
         };
     }
 
     private int countItemInInventory(Item item) {
+        if (item == null) return 0;
         int total = 0;
         for (int i = 0; i < 36; i++) {
             ItemStack stack = this.getInventory().getItem(i);
@@ -979,6 +1149,17 @@ public class CompanionServerPlayer extends ServerPlayer {
         for (int i = 0; i < 36; i++) {
             ItemStack stack = this.getInventory().getItem(i);
             if (!stack.isEmpty() && (stack.is(Items.COBBLESTONE) || stack.is(Items.STONE))) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private int countWheatInInventory() {
+        int total = 0;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = this.getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(Items.WHEAT)) {
                 total += stack.getCount();
             }
         }
@@ -1013,9 +1194,35 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
     }
 
-    private void deliverItemToOwner(ServerPlayer owner, Item item, int count) {
-        if (owner == null) return;
-        ItemStack stack = new ItemStack(item, count);
+    private void consumeWheat(int amount) {
+        int needed = amount;
+        for (int i = 0; i < 36 && needed > 0; i++) {
+            ItemStack stack = this.getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(Items.WHEAT)) {
+                int toTake = Math.min(needed, stack.getCount());
+                stack.shrink(toTake);
+                needed -= toTake;
+            }
+        }
+    }
+
+    private ItemStack withdrawItemFromInventory(Item item, int count) {
+        int needed = count;
+        int taken = 0;
+        for (int i = 0; i < 36 && needed > 0; i++) {
+            ItemStack stack = this.getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(item)) {
+                int toTake = Math.min(needed, stack.getCount());
+                stack.shrink(toTake);
+                needed -= toTake;
+                taken += toTake;
+            }
+        }
+        return new ItemStack(item, taken);
+    }
+
+    private void deliverItemToOwner(ServerPlayer owner, ItemStack stack) {
+        if (owner == null || stack == null || stack.isEmpty()) return;
         if (!owner.getInventory().add(stack)) {
             owner.drop(stack, false);
         }
@@ -1026,6 +1233,22 @@ public class CompanionServerPlayer extends ServerPlayer {
         for (int i = 0; i < container.getContainerSize() && retrieved < maxCount; i++) {
             ItemStack stack = container.getItem(i);
             if (!stack.isEmpty() && stack.is(item)) {
+                int toTake = Math.min(maxCount - retrieved, stack.getCount());
+                stack.shrink(toTake);
+                retrieved += toTake;
+            }
+        }
+        if (retrieved > 0) {
+            container.setChanged();
+        }
+        return retrieved;
+    }
+
+    private int withdrawItemTagFromContainer(Container container, net.minecraft.tags.TagKey<Item> tag, int maxCount) {
+        int retrieved = 0;
+        for (int i = 0; i < container.getContainerSize() && retrieved < maxCount; i++) {
+            ItemStack stack = container.getItem(i);
+            if (!stack.isEmpty() && stack.is(tag)) {
                 int toTake = Math.min(maxCount - retrieved, stack.getCount());
                 stack.shrink(toTake);
                 retrieved += toTake;
@@ -1061,11 +1284,90 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
     }
 
+    public boolean tryRecallToOwner(ServerPlayer owner) {
+        if (owner == null || this.server == null) {
+            return false;
+        }
+
+        // 1. Verificacao de dimensao
+        if (this.level() != owner.level()) {
+            speakToOwner("Estamos em dimensoes diferentes, nao consigo alcancar voce.");
+            return false;
+        }
+
+        // 2. Verificacao de combate ativo
+        if (this.mode == CompanionMode.DEFEND) {
+            AABB searchBox = this.getBoundingBox().inflate(10.0, 4.0, 10.0);
+            List<Monster> hostiles = this.level().getEntitiesOfClass(Monster.class, searchBox, LivingEntity::isAlive);
+            if (!hostiles.isEmpty()) {
+                speakToOwner("Nao posso ir ate voce agora: estou em combate com monstros proximos!");
+                return false;
+            }
+        }
+
+        // 3. Verificacao de cooldown (minimo 60 ticks = 3 segundos)
+        long currentGameTime = this.level().getGameTime();
+        if (currentGameTime - this.lastRecallGameTime < 60L && this.lastRecallGameTime > 0) {
+            speakToOwner("Aguarde alguns instantes antes de me chamar novamente.");
+            return false;
+        }
+
+        // 4. Busca de bloco seguro ao redor do jogador
+        BlockPos ownerPos = owner.blockPosition();
+        BlockPos safePos = findSafeRecallPosition(owner.serverLevel(), ownerPos);
+
+        if (safePos == null) {
+            speakToOwner("O local de destino e perigoso ou nao tem chao seguro.");
+            return false;
+        }
+
+        // 5. Teleporte seguro com conservacao de movimento e atualizacao de estado
+        this.teleportTo(owner.serverLevel(), safePos.getX() + 0.5D, safePos.getY(), safePos.getZ() + 0.5D, owner.getYRot(), owner.getXRot());
+        this.setDeltaMovement(0, 0, 0);
+        this.setMode(CompanionMode.FOLLOW);
+        this.targetWorkPos = null;
+        this.workBreakTicks = 0;
+        this.lastRecallGameTime = currentGameTime;
+
+        speakToOwner("Estou a caminho, me aproximei com seguranca de voce!");
+        return true;
+    }
+
+    public BlockPos findSafeRecallPosition(ServerLevel level, BlockPos center) {
+        if (level == null || center == null) return null;
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                for (int dy = -1; dy <= 2; dy++) {
+                    BlockPos candidate = center.offset(dx, dy, dz);
+                    BlockState floor = level.getBlockState(candidate);
+                    BlockPos feetPos = candidate.above();
+                    BlockPos headPos = candidate.above(2);
+                    BlockState feet = level.getBlockState(feetPos);
+                    BlockState head = level.getBlockState(headPos);
+
+                    boolean floorSafe = (floor.isSolidRender(level, candidate) || floor.isSolid())
+                            && !floor.is(Blocks.LAVA)
+                            && !floor.is(Blocks.FIRE)
+                            && !floor.is(Blocks.SOUL_FIRE)
+                            && !floor.is(Blocks.MAGMA_BLOCK);
+
+                    boolean feetSafe = (feet.isAir() || feet.canBeReplaced()) && feet.getFluidState().isEmpty();
+                    boolean headSafe = (head.isAir() || head.canBeReplaced()) && head.getFluidState().isEmpty();
+
+                    if (floorSafe && feetSafe && headSafe) {
+                        return feetPos;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     public void recallToOwner() {
         if (this.server == null) return;
         ServerPlayer owner = this.server.getPlayerList().getPlayer(this.ownerUuid);
         if (owner != null) {
-            this.teleportTo(owner.serverLevel(), owner.getX() + 1.2, owner.getY(), owner.getZ() + 1.2, owner.getYRot(), owner.getXRot());
+            tryRecallToOwner(owner);
         }
     }
 

@@ -322,8 +322,7 @@ public class CompanionManager {
         if (owner == null) return false;
         CompanionServerPlayer fakePlayer = FAKE_PLAYERS_BY_OWNER.get(owner.getUUID());
         if (fakePlayer != null) {
-            fakePlayer.recallToOwner();
-            return true;
+            return fakePlayer.tryRecallToOwner(owner);
         }
         return false;
     }

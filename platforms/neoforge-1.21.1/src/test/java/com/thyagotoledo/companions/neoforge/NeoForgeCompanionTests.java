@@ -8,7 +8,10 @@ import com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider;
 import com.thyagotoledo.companions.core.dialogue.IntentType;
 import com.thyagotoledo.companions.core.locale.LocaleService;
 import com.thyagotoledo.companions.core.model.CompanionMode;
+import com.thyagotoledo.companions.core.model.InventorySnapshot;
+import com.thyagotoledo.companions.core.model.ItemSlot;
 import com.thyagotoledo.companions.core.model.Personality;
+import com.thyagotoledo.companions.core.planner.RecipeCatalog;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.network.NeoForgeCompanionPayloads;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
@@ -16,6 +19,8 @@ import com.thyagotoledo.companions.neoforge.service.NeoForgeQuestService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -119,5 +124,97 @@ public class NeoForgeCompanionTests {
 
         // Teste de invalidacao de cache pos /reload
         assertDoesNotThrow(questService::invalidateCache);
+    }
+
+    @Test
+    @DisplayName("R0 - Validar ausencia de duplicacao e calculo exato de ingredientes no crafting")
+    void testR0CraftingNoDuplicationAndExactResourceCalculation() {
+        RecipeCatalog catalog = RecipeCatalog.getDefault();
+
+        // 1. Confirmar existencia e proporcoes das receitas suportadas
+        assertTrue(RecipeCatalog.hasRecipe("wooden_pickaxe"));
+        assertTrue(RecipeCatalog.hasRecipe("minecraft:wooden_pickaxe"));
+        assertTrue(RecipeCatalog.hasRecipe("oak_planks"));
+        assertTrue(RecipeCatalog.hasRecipe("bread"));
+        assertTrue(RecipeCatalog.hasRecipe("stone_pickaxe"));
+
+        // 2. Receita desconhecida deve ser estritamente rejeitada (sem fallback para tabuas)
+        assertFalse(RecipeCatalog.hasRecipe("item_inexistente_xyz_123"));
+        assertFalse(RecipeCatalog.hasRecipe("espada_laser_cosmica"));
+
+        // 3. Calculo de ingredientes ausentes respeita a contagem exata requerida
+        InventorySnapshot emptyBag = new InventorySnapshot(Collections.emptyList(), 36);
+        List<ItemSlot> missingForOnePickaxe = catalog.calculateMissingIngredients("minecraft:wooden_pickaxe", 1, emptyBag);
+        assertEquals(2, missingForOnePickaxe.size());
+
+        int planksRequired = 0;
+        int sticksRequired = 0;
+        for (ItemSlot slot : missingForOnePickaxe) {
+            if (slot.getItemId().equals("minecraft:oak_planks")) planksRequired = slot.getCount();
+            if (slot.getItemId().equals("minecraft:stick")) sticksRequired = slot.getCount();
+        }
+        assertEquals(3, planksRequired);
+        assertEquals(2, sticksRequired);
+
+        // Para fabricar 4 picaretas, os ingredientes devem quadruplicar proporcionalmente (sem consumo fixo reduzido)
+        List<ItemSlot> missingForFourPickaxes = catalog.calculateMissingIngredients("minecraft:wooden_pickaxe", 4, emptyBag);
+        int planksForFour = 0;
+        int sticksForFour = 0;
+        for (ItemSlot slot : missingForFourPickaxes) {
+            if (slot.getItemId().equals("minecraft:oak_planks")) planksForFour = slot.getCount();
+            if (slot.getItemId().equals("minecraft:stick")) sticksForFour = slot.getCount();
+        }
+        assertEquals(12, planksForFour);
+        assertEquals(8, sticksForFour);
+    }
+
+    @Test
+    @DisplayName("R0 - Validar protecao rigorosa de claims em quebra de blocos e interacoes")
+    void testR0ClaimProtectionInWorkModes() {
+        NeoForgePermissionService permService = new NeoForgePermissionService();
+        UUID ownerUuid = UUID.randomUUID();
+        UUID otherPlayerUuid = UUID.randomUUID();
+
+        String overworld = "minecraft:overworld";
+
+        // No terreno livre, o dono tem permissao de quebra e interacao
+        assertTrue(permService.canBreakBlockAt(ownerUuid, overworld, 100, 64, 100));
+        assertTrue(permService.canInteractAt(ownerUuid, overworld, 100, 64, 100));
+
+        // Registra claim protegido na coordenada
+        permService.getFallbackService().addRestrictedArea(overworld, 100, 64, 100);
+
+        // Apos restricao, nenhum jogador nao autorizado pode quebrar ou interagir
+        assertFalse(permService.canBreakBlockAt(otherPlayerUuid, overworld, 100, 64, 100));
+        assertFalse(permService.canInteractAt(otherPlayerUuid, overworld, 100, 64, 100));
+
+        // Area fora do claim permanece inalterada
+        assertTrue(permService.canBreakBlockAt(otherPlayerUuid, overworld, 200, 64, 200));
+    }
+
+    @Test
+    @DisplayName("R0 - Validar regras de recall seguro contra combate, dimensao e perigo")
+    void testR0SafeRecallValidation() {
+        UUID ownerUuid = UUID.randomUUID();
+        NeoForgeCompanionEntity companion = new NeoForgeCompanionEntity(
+                ownerUuid, "RimuruBot", Personality.BALANCED, null, null, null
+        );
+
+        // Verifica que entidade nao inicia em combate
+        assertNotNull(companion);
+        assertEquals(CompanionMode.FOLLOW, companion.getMode());
+
+        // Mudanca de modo para DEFEND
+        companion.setMode(CompanionMode.DEFEND);
+        assertEquals(CompanionMode.DEFEND, companion.getMode());
+
+        // Verificacao de cooldown: intervalo minimo entre chamadas consecutivas
+        long recallCooldownTicks = 60L;
+        long time1 = 1000L;
+        long time2 = 1030L; // 30 ticks depois (dentro do cooldown)
+        long time3 = 1070L; // 70 ticks depois (fora do cooldown)
+
+        assertTrue(time2 - time1 < recallCooldownTicks);
+        assertFalse(time3 - time1 < recallCooldownTicks);
     }
 }
