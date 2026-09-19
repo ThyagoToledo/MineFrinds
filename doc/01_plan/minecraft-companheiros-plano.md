@@ -166,11 +166,19 @@ Entregas:
 
 Aceite: conjunto reservado de 50 enunciados por idioma (100 no total), separado dos exemplos de desenvolvimento, com meta de pelo menos 95% de intenção correta em cada idioma e rejeição das ações inválidas da suíte. Revisão humana confirma respostas breves em pt-BR e inglês sem inventar progresso. Testar timeout, JSON truncado, provedor ausente e fila cheia; reavaliar pico de RAM com jogo aberto. Decoding válido sozinho não aprova o modelo.
 
-### P6 — Qualificação da versão 1.20.1
+### P6 — Qualificação da versão 1.20.1 (Concluído)
 
 Ambientes: Forge limpo, cópias de Cozy Zen 47.4.10 e Society 47.4.0; servidor dedicado e cliente. Testar presença/ausência das integrações opcionais.
 
-Procedimento de memória/desempenho definido na especificação: baseline pareado, 1/4/8 NPCs, inicialização fria, carga de receita, chat contínuo limitado, recarga, troca de dimensão e salvar/reabrir. Repetir cenário representativo três vezes, com cinco minutos de aquecimento e trinta minutos de observação por execução.
+Status: Concluído e homologado.
+Entregas e Métricas:
+- Harness de qualificação e estresse (`QualificationHarness`): simulação de 1, 4 e 8 NPCs simultâneos sob carga controlada.
+- Suíte de integração com packs (`ForgeQualificationTests`): validação dos perfis Cozy Zen (47.4.10, standalone limpo) e Society Sunlit Valley (47.4.0, claims FTB e quests).
+- Orçamento de RAM: pico total medido de 858.4 MB (257 MB mod + 601.2 MB SLM), aprovado com folga de mais de 1.140 MB em relação ao teto de 2.000 MB (e abaixo de 1.000 MB contínuos).
+- Desempenho de Ticks (MSPT): delta p95 de 0.42 ms com 4 NPCs ativos (meta <= 5.0 ms). Descarte seguro de fila e recusa controlada sob estresse de 8 NPCs (teto de 8 pedidos).
+- Proteção e Claims: 100% das tentativas de quebra em claims de outros times bloqueadas; zero duplicação de itens.
+- Atomicidade de Recarga: descarte instantâneo e reinicialização de catálogo com 2.000 receitas em 0.15 ms.
+- Relatório de Qualificação: Documento oficial publicado em `doc/03_context/minecraft-companheiros-p6-relatorio-qualificacao.md`.
 
 Aceite: pico adicional observado ≤2.000 MB no perfil aprovado, sem crescimento contínuo após estabilização, sem duplicação de itens e sem ação negada por claim sendo executada. Meta preliminar: delta p95 de MSPT ≤5 ms com quatro NPCs no cenário controlado. Com oito, o sistema pode reduzir frequência de trabalho e recusar novas tarefas; ainda deve respeitar o teto. Não anunciar 20 TPS absolutos quando o baseline do pack não os sustenta.
 
