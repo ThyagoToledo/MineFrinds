@@ -37,7 +37,11 @@ def mcLibs = files(
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/io/netty/netty-common/4.1.97.Final/netty-common-4.1.97.Final.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/io/netty/netty-buffer/4.1.97.Final/netty-buffer-4.1.97.Final.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/io/netty/netty-codec/4.1.97.Final/netty-codec-4.1.97.Final.jar',
+    'C:/Users/thyag/curseforge/minecraft/Install/libraries/io/netty/netty-transport/4.1.97.Final/netty-transport-4.1.97.Final.jar',
+    'C:/Users/thyag/curseforge/minecraft/Install/libraries/io/netty/netty-transport-classes-epoll/4.1.97.Final/netty-transport-classes-epoll-4.1.97.Final.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/org/joml/joml/1.10.5/joml-1.10.5.jar',
+    'C:/Users/thyag/curseforge/minecraft/Install/libraries/com/mojang/authlib/6.0.54/authlib-6.0.54.jar',
+    'C:/Users/thyag/curseforge/minecraft/Install/libraries/org/apache/commons/commons-lang3/3.14.0/commons-lang3-3.14.0.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3.jar'
 )
@@ -45,6 +49,7 @@ def mcLibs = files(
 dependencies {
     implementation 'com.thyagotoledo.companions:core:0.1.0-SNAPSHOT'
     compileOnly 'com.google.code.gson:gson:2.10.1'
+    compileOnly 'com.google.guava:guava:32.1.2-jre'
     compileOnly mcLibs
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'com.google.code.gson:gson:2.10.1'

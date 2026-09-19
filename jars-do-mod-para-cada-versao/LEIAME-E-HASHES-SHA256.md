@@ -17,8 +17,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 95.811 bytes | `430CF2EA847B81E2A76F7138FCF63440E7ED6B08ADB7B696FBD25B6E6EA38230` |
-| `companions-neoforge-1.21.1-0.1.0.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / NeoForge Geral com Abas e Skins | 96.419 bytes | `A1A5737527B295914872539D3CFA17E112E93CA96B0043C7B1412271E8020ACB` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar` | NeoForge 21.1.244+ | 1.21.1 | Adaptada para Tensura Neo Otherworld com Abas e Skins | 96.462 bytes | `42255A0D5F874532AD43F8F724B43C6CAC82773F321C38F8AB018A7A192CD935` |
+| `companions-neoforge-1.21.1-0.1.0.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / ServerPlayer Fake, LAN, Abas e Skins | 107.115 bytes | `2A950D0B4206DD00E706DDC7FF3D8CECCD2AA340B7C35A81A4F08A50B356A288` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar` | NeoForge 21.1.244+ | 1.21.1 | Adaptada Tensura / ServerPlayer Fake, LAN, Abas e Skins | 107.158 bytes | `8DC9E9E37CEA7612663BD92259D0CA82B9E0035CF5578CD66BF77D3D934E884B` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 
 ---

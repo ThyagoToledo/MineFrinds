@@ -57,13 +57,22 @@ public class CompanionCommands {
                                 })
                         )
                         .then(Commands.literal("spawn")
-                                .executes(ctx -> executeSpawn(ctx.getSource(), null))
+                                .executes(ctx -> executeSpawn(ctx.getSource(), null, false))
                                 .then(Commands.argument("nome", StringArgumentType.greedyString())
-                                        .executes(ctx -> executeSpawn(ctx.getSource(), StringArgumentType.getString(ctx, "nome")))
+                                        .executes(ctx -> executeSpawn(ctx.getSource(), StringArgumentType.getString(ctx, "nome"), false))
+                                )
+                        )
+                        .then(Commands.literal("lan")
+                                .executes(ctx -> executeSpawn(ctx.getSource(), null, true))
+                                .then(Commands.argument("nome", StringArgumentType.greedyString())
+                                        .executes(ctx -> executeSpawn(ctx.getSource(), StringArgumentType.getString(ctx, "nome"), true))
                                 )
                         )
                         .then(Commands.literal("recall")
                                 .executes(ctx -> executeRecall(ctx.getSource()))
+                        )
+                        .then(Commands.literal("dismiss")
+                                .executes(ctx -> executeDismiss(ctx.getSource()))
                         )
                         .then(Commands.literal("skin")
                                 .executes(ctx -> executeSkin(ctx.getSource(), "reset"))
@@ -105,24 +114,28 @@ public class CompanionCommands {
         );
     }
 
-    private static int executeSpawn(CommandSourceStack source, String customName) {
+    private static int executeSpawn(CommandSourceStack source, String customName, boolean openLan) {
         ServerPlayer player = source.getPlayer();
         if (player == null) {
             source.sendFailure(Component.literal("Este comando so pode ser executado por um jogador."));
             return 0;
         }
 
-        UUID playerUuid = player.getUUID();
         String chosenName = (customName != null && !customName.trim().isEmpty())
                 ? customName.trim()
-                : "Companheiro de " + player.getName().getString();
+                : "Companheiro";
 
-        NeoForgeCompanionEntity companion = CompanionManager.spawnCompanion(playerUuid, chosenName);
-        companion.setCustomSkin(""); // Padrao: usa a skin do jogador
-
-        source.sendSuccess(() -> Component.literal("Companheiro \"" + companion.getName() + "\" invocado com sucesso!"), true);
-        source.sendSuccess(() -> Component.literal("Dica: Pressione a tecla C para abrir o painel ou use /skin <nome> para alterar sua aparencia."), false);
-        return 1;
+        try {
+            CompanionManager.spawnPlayerCompanion(player, chosenName, openLan);
+            source.sendSuccess(() -> Component.literal("Companheiro \"" + chosenName + "\" entrou no jogo como jogador oficial!"), true);
+            source.sendSuccess(() -> Component.literal("Pressione Tab para ve-lo na lista de jogadores ou C para abrir as acoes."), false);
+            return 1;
+        } catch (Throwable t) {
+            NeoForgeCompanionEntity companion = CompanionManager.spawnCompanion(player.getUUID(), chosenName);
+            companion.setCustomSkin("");
+            source.sendSuccess(() -> Component.literal("Companheiro \"" + companion.getName() + "\" invocado com sucesso!"), true);
+            return 1;
+        }
     }
 
     private static int executeRecall(CommandSourceStack source) {
@@ -132,14 +145,34 @@ public class CompanionCommands {
             return 0;
         }
 
-        NeoForgeCompanionEntity companion = CompanionManager.getCompanionForOwner(player.getUUID());
-        if (companion == null) {
-            source.sendFailure(Component.literal("Voce ainda nao possui um companheiro. Use /companion spawn para invocar um."));
+        boolean recalled = CompanionManager.recallPlayerCompanion(player);
+        if (!recalled) {
+            NeoForgeCompanionEntity companion = CompanionManager.getCompanionForOwner(player.getUUID());
+            if (companion == null) {
+                source.sendFailure(Component.literal("Voce ainda nao possui um companheiro. Use /companion spawn para invocar um."));
+                return 0;
+            }
+        }
+
+        source.sendSuccess(() -> Component.literal("Companheiro chamado com seguranca para perto de voce."), true);
+        return 1;
+    }
+
+    private static int executeDismiss(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("Este comando so pode ser executado por um jogador."));
             return 0;
         }
 
-        source.sendSuccess(() -> Component.literal("Companheiro " + companion.getName() + " chamado com seguranca para perto de voce."), true);
-        return 1;
+        boolean dismissed = CompanionManager.dismissPlayerCompanion(player.getUUID());
+        if (dismissed) {
+            source.sendSuccess(() -> Component.literal("Companheiro dispensado do servidor com sucesso."), true);
+            return 1;
+        } else {
+            source.sendFailure(Component.literal("Voce nao possui nenhum companheiro ativo no momento."));
+            return 0;
+        }
     }
 
     private static int executeSkin(CommandSourceStack source, String skinName) {
@@ -176,8 +209,10 @@ public class CompanionCommands {
         source.sendSuccess(() -> Component.literal("  - Ou clique no icone [C] na lateral do seu inventario (tecla E)."), false);
         source.sendSuccess(() -> Component.literal("  - Ou digite /companion gui."), false);
         source.sendSuccess(() -> Component.literal("Comandos Principais:"), false);
-        source.sendSuccess(() -> createClickableCommand("/companion spawn [nome]", "Clique para invocar o companheiro", "/companion spawn "), false);
-        source.sendSuccess(() -> createClickableCommand("/companion recall", "Clique para chamar o companheiro para perto", "/companion recall"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion spawn [nome]", "Invoca o companheiro como jogador oficial no servidor", "/companion spawn "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion lan [nome]", "Abre o mundo para LAN e invoca o companheiro", "/companion lan "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion recall", "Chama o companheiro para perto de voce", "/companion recall"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion dismiss", "Dispensa o companheiro do servidor", "/companion dismiss"), false);
         source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Clique para personalizar a skin", "/skin "), false);
         source.sendSuccess(() -> createClickableCommand("/skin reset", "Restaura para a sua propria skin", "/skin reset"), false);
         source.sendSuccess(() -> Component.literal("Dica: Voce tambem pode falar diretamente com ele digitando ordens no chat (ex: 'me segue', 'fica aqui', 'pega madeira', 'visao')."), false);

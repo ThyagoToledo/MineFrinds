@@ -120,14 +120,38 @@ public class CompanionScreen extends Screen {
         int col2 = left + 260;
 
         // Botoes da Coluna Esquerda de Conveniencia
-        addRenderableWidget(Button.builder(Component.literal("Mochila"), b -> sendOrder("inventario"))
-                .bounds(left + 14, top + 110, 74, btnH)
-                .tooltip(Tooltip.create(Component.literal("Acessa o inventario de 27 slots do companheiro.")))
+        addRenderableWidget(Button.builder(Component.literal("Invocar Player"), b -> {
+                    sendOrder("/companion spawn");
+                    this.lastStatusMessage = "Companheiro entrando como jogador oficial no servidor...";
+                })
+                .bounds(left + 14, top + 104, 76, btnH)
+                .tooltip(Tooltip.create(Component.literal("Invoca o companheiro como jogador oficial (consta no Tab e chat).")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Guardar no Bau"), b -> sendOrder("deposito"))
-                .bounds(left + 92, top + 110, 80, btnH)
+        addRenderableWidget(Button.builder(Component.literal("Abrir p/ LAN"), b -> {
+                    sendOrder("/companion lan");
+                    this.lastStatusMessage = "Abrindo mundo para LAN e invocando companheiro...";
+                })
+                .bounds(left + 92, top + 104, 78, btnH)
+                .tooltip(Tooltip.create(Component.literal("Abre o mundo para LAN e convoca o companheiro para jogar.")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Mochila"), b -> sendOrder("inventario"))
+                .bounds(left + 14, top + 128, 48, btnH)
+                .tooltip(Tooltip.create(Component.literal("Acessa o inventario do companheiro.")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Guardar"), b -> sendOrder("deposito"))
+                .bounds(left + 64, top + 128, 50, btnH)
                 .tooltip(Tooltip.create(Component.literal("Deposita drops e recursos no bau mais proximo.")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Dispensar"), b -> {
+                    sendOrder("/companion dismiss");
+                    this.lastStatusMessage = "Companheiro dispensado do servidor.";
+                })
+                .bounds(left + 116, top + 128, 54, btnH)
+                .tooltip(Tooltip.create(Component.literal("Desconecta o companheiro do servidor com mensagem de saida.")))
                 .build());
 
         // Botoes de Acoes Rapidas (Coluna Direita)
@@ -379,11 +403,10 @@ public class CompanionScreen extends Screen {
         guiGraphics.fill(left + 174, top + 46, left + 175, top + 174, 0xFF33354A);
 
         // Coluna Esquerda: Dados de Sobrevivencia Vanilla
-        guiGraphics.drawString(this.font, "Companheiro Vinculado", left + 14, top + 48, 0xFFAAAAAA);
-        guiGraphics.drawString(this.font, "Nara (Exploradora)", left + 14, top + 60, 0xFFFFFFFF);
-
-        guiGraphics.drawString(this.font, "Modo Atual: SEGUINDO", left + 14, top + 76, 0xFF55FF55);
-        guiGraphics.drawString(this.font, "Vida: 20 / 20", left + 14, top + 90, 0xFFFF5555);
+        guiGraphics.drawString(this.font, "Companheiro:", left + 14, top + 46, 0xFFAAAAAA);
+        guiGraphics.drawString(this.font, "Presenca: Jogador Real", left + 14, top + 56, 0xFF55FFFF);
+        guiGraphics.drawString(this.font, "Modo: SEGUINDO", left + 14, top + 68, 0xFF55FF55);
+        guiGraphics.drawString(this.font, "Vida: 20 / 20", left + 14, top + 80, 0xFFFF5555);
 
         // Mensagem de feedback de ordem
         guiGraphics.drawString(this.font, this.lastStatusMessage, left + 14, top + 168, 0xFFFFFF55);
