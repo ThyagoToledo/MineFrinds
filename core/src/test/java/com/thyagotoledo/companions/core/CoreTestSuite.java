@@ -315,4 +315,81 @@ public class CoreTestSuite {
         com.thyagotoledo.companions.core.quest.QuestPlanResult readyResult = planner.planQuest(playerUuid, "botania_fixture", readyInv, companionInv);
         assertEquals(com.thyagotoledo.companions.core.quest.QuestPlanResult.Status.READY_TO_SUBMIT, readyResult.getStatus());
     }
+
+    @Test
+    public void testConversationMemoryBufferLimit() {
+        com.thyagotoledo.companions.core.ai.ConversationMemory memory =
+                new com.thyagotoledo.companions.core.ai.ConversationMemory(4);
+
+        assertEquals(0, memory.size());
+
+        memory.addEntry("user", "mensagem 1");
+        memory.addEntry("companion", "resposta 1");
+        memory.addEntry("user", "mensagem 2");
+        memory.addEntry("companion", "resposta 2");
+        assertEquals(4, memory.size());
+
+        // Entrada que excede a capacidade maxima
+        memory.addEntry("user", "mensagem 3");
+        assertEquals(4, memory.size());
+        assertEquals("resposta 1", memory.getEntries().get(0).getText());
+        assertEquals("mensagem 3", memory.getEntries().get(3).getText());
+
+        memory.clear();
+        assertEquals(0, memory.size());
+    }
+
+    @Test
+    public void testHybridDialogueProviderPriorityAndFallback() {
+        com.thyagotoledo.companions.core.ai.MockInferenceClient mockClient =
+                new com.thyagotoledo.companions.core.ai.MockInferenceClient();
+        com.thyagotoledo.companions.core.ai.ConversationMemory memory =
+                new com.thyagotoledo.companions.core.ai.ConversationMemory(6);
+        com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider provider =
+                new com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider(
+                        dialogueProvider,
+                        mockClient,
+                        memory,
+                        localeService
+                );
+
+        CompanionProfile profile = new CompanionProfile(
+                UUID.randomUUID(), UUID.randomUUID(), "Lia", CompanionMode.FOLLOW, Personality.BALANCED
+        );
+        InventorySnapshot emptyInv = new InventorySnapshot(Collections.emptyList(), 27);
+
+        // 1. Comando deterministico: deve responder imediatamente sem acionar inferencia
+        DialogueResponse followResp = provider.processSync("me segue", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(IntentType.FOLLOW_OWNER, followResp.getIntent().getType());
+        assertEquals("Entendido, estou te seguindo.", followResp.getSpeech());
+
+        // 2. Dialogo casual com IA online
+        mockClient.setNextResponse("{\"intent\": \"CASUAL_CHAT\", \"speech\": \"O dia esta otimo para minerar!\"}");
+        DialogueResponse chatResp = provider.processSync("o que voce acha do dia?", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(IntentType.CASUAL_CHAT, chatResp.getIntent().getType());
+        assertEquals("O dia esta otimo para minerar!", chatResp.getSpeech());
+        assertTrue(memory.size() >= 2);
+
+        // 3. Fallback sob indisponibilidade da IA
+        mockClient.setAvailable(false);
+        DialogueResponse offlineResp = provider.processSync("conta uma historia", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(IntentType.UNKNOWN_OR_BLOCKED, offlineResp.getIntent().getType());
+        assertEquals("Nao entendi muito bem. Pode repetir?", offlineResp.getSpeech());
+
+        // 4. Fallback sob fila de inferencia cheia (>= 8)
+        mockClient.setAvailable(true);
+        mockClient.setPendingQueueSize(8);
+        DialogueResponse queueFullResp = provider.processSync("mais uma pergunta", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(IntentType.UNKNOWN_OR_BLOCKED, queueFullResp.getIntent().getType());
+    }
+
+    @Test
+    public void testHttpInferenceClientQueueLimitAndContract() {
+        com.thyagotoledo.companions.core.ai.HttpInferenceClient client =
+                new com.thyagotoledo.companions.core.ai.HttpInferenceClient("http://127.0.0.1:8080/v1/chat/completions", 1500);
+
+        assertTrue(client.isAvailable());
+        assertEquals(0, client.getPendingQueueSize());
+        assertDoesNotThrow(client::shutdown);
+    }
 }

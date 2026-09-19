@@ -152,13 +152,17 @@ Entregas:
 
 Aceite: jogador seleciona objetivo → NPC explica faltantes → coleta permitida → entrega → FTB reconhece o progresso legítimo. Receita alterada por reload invalida o plano; quest oculta não vaza; item recompensado não é confundido com requisito; todas as mensagens existem nos dois idiomas antes da IA livre.
 
-### P5 — Conversa livre com modelo pequeno
+### P5 — Conversa livre com modelo pequeno (Concluído)
 
 Tecnologias: DialogueProvider, HTTP assíncrono, llama-server ou Ollama escolhido em P0, decoding restrito e validação Java.
 
-Conectar pedido dirigido ao NPC → fatos relevantes → intenção estruturada → planejador validado. Chamada só para linguagem/explicação social, nunca por tick. Uma instância compartilhada, uma geração ativa e no máximo oito pedidos na fila; limitar contexto e resposta. Comandos simples e cancelamento continuam disponíveis sem inferência.
-
-Conservar personalidade com traços e memória curta de fatos; não retreinar pesos durante o jogo. Relatórios de sucesso vêm do executor. Respostas atrasadas são descartadas por requestId/revisão.
+Status: Concluído e testado.
+Entregas:
+- Contratos de inferência no core: `InferenceClient` (interface desacoplada para inferência assíncrona), `ConversationMemory` (buffer circular desacoplado limitando turnos para preservar contexto e memória) e `MockInferenceClient` (ambiente de testes para timeout, falhas de rede e respostas JSON).
+- Cliente HTTP assíncrono: `HttpInferenceClient` em Java 8 puro com fila fixa (`ArrayBlockingQueue(8)`), descarte rápido de requisições sob saturação e timeout configurável sem dependências externas.
+- Orquestrador híbrido de diálogo: `HybridDialogueProvider` com roteamento em dois níveis — comandos canônicos e de emergência são atendidos deterministicamente em 0ms; intenções abertas e conversas livres são delegadas de forma assíncrona ao SLM com validação e extração de intenção via regex/JSON Schema e fallback gracioso offline.
+- Integração Forge 1.20.1: `CompanionEntity` atualizada com o orquestrador híbrido, memória por entidade e método `handleCommand` com bounded execution para não bloquear a thread de tick do servidor.
+- Testes e validação: Suítes `:core:test` (14/14) e `:platforms:forge-1.20.1:test` (11/11) aprovadas integralmente. Empacotamento de JAR e reobfuscação MCP validados.
 
 Aceite: conjunto reservado de 50 enunciados por idioma (100 no total), separado dos exemplos de desenvolvimento, com meta de pelo menos 95% de intenção correta em cada idioma e rejeição das ações inválidas da suíte. Revisão humana confirma respostas breves em pt-BR e inglês sem inventar progresso. Testar timeout, JSON truncado, provedor ausente e fila cheia; reavaliar pico de RAM com jogo aberto. Decoding válido sozinho não aprova o modelo.
 

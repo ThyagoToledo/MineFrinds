@@ -44,6 +44,9 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import com.thyagotoledo.companions.core.ai.ConversationMemory;
+import com.thyagotoledo.companions.core.ai.HttpInferenceClient;
+import com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider;
 import com.thyagotoledo.companions.core.planner.RecipeCatalog;
 import com.thyagotoledo.companions.core.quest.Quest;
 import com.thyagotoledo.companions.core.quest.QuestPlanner;
@@ -61,6 +64,13 @@ public class CompanionEntity extends TamableAnimal {
     private String preferredLocale = LocaleService.PT_BR;
     private final LocaleService localeService = new LocaleService();
     private final DeterministicDialogueProvider dialogueProvider = new DeterministicDialogueProvider(localeService);
+    private final ConversationMemory conversationMemory = new ConversationMemory(6);
+    private final HybridDialogueProvider hybridDialogueProvider = new HybridDialogueProvider(
+            dialogueProvider,
+            new HttpInferenceClient(),
+            conversationMemory,
+            localeService
+    );
     private final ForgeQuestService questService = new ForgeQuestService();
     private final RecipeCatalog recipeCatalog = new RecipeCatalog();
     private final QuestPlanner questPlanner = new QuestPlanner(questService, recipeCatalog);
@@ -155,6 +165,14 @@ public class CompanionEntity extends TamableAnimal {
 
     public RecipeCatalog getRecipeCatalog() {
         return this.recipeCatalog;
+    }
+
+    public HybridDialogueProvider getHybridDialogueProvider() {
+        return this.hybridDialogueProvider;
+    }
+
+    public ConversationMemory getConversationMemory() {
+        return this.conversationMemory;
     }
 
     public InventorySnapshot createPlayerInventorySnapshot(Player player) {
@@ -372,7 +390,7 @@ public class CompanionEntity extends TamableAnimal {
                 Personality.BALANCED
         );
 
-        var response = this.dialogueProvider.process(command, this.preferredLocale, coreProfile, createInventorySnapshot());
+        var response = this.hybridDialogueProvider.processSync(command, this.preferredLocale, coreProfile, createInventorySnapshot(), 1500L);
         var intent = response.getIntent();
 
         switch (intent.getType()) {

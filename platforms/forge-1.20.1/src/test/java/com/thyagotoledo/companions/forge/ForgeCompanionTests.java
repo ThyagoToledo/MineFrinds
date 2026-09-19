@@ -246,4 +246,50 @@ public class ForgeCompanionTests {
         assertTrue(ptBlocked.contains("dependencias anteriores"));
         assertTrue(enBlocked.contains("prerequisite quests"));
     }
+
+    @Test
+    @DisplayName("Validar provedor hibrido de dialogo, memoria de conversa e contratos da Etapa P5")
+    void testP5HybridDialogueAndInferenceContracts() {
+        LocaleService localeService = new LocaleService();
+        com.thyagotoledo.companions.core.dialogue.DeterministicDialogueProvider detProvider =
+                new com.thyagotoledo.companions.core.dialogue.DeterministicDialogueProvider(localeService);
+        com.thyagotoledo.companions.core.ai.MockInferenceClient mockClient =
+                new com.thyagotoledo.companions.core.ai.MockInferenceClient();
+        com.thyagotoledo.companions.core.ai.ConversationMemory memory =
+                new com.thyagotoledo.companions.core.ai.ConversationMemory(6);
+
+        com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider hybridProvider =
+                new com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider(
+                        detProvider,
+                        mockClient,
+                        memory,
+                        localeService
+                );
+
+        com.thyagotoledo.companions.core.model.CompanionProfile profile =
+                new com.thyagotoledo.companions.core.model.CompanionProfile(
+                        java.util.UUID.randomUUID(),
+                        java.util.UUID.randomUUID(),
+                        "Nara",
+                        CompanionMode.FOLLOW,
+                        com.thyagotoledo.companions.core.model.Personality.BALANCED
+                );
+
+        com.thyagotoledo.companions.core.model.InventorySnapshot emptyInv =
+                new com.thyagotoledo.companions.core.model.InventorySnapshot(java.util.Collections.emptyList(), 27);
+
+        // Ordem canônica direta
+        com.thyagotoledo.companions.core.dialogue.DialogueResponse stayResp =
+                hybridProvider.processSync("fica aqui", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(com.thyagotoledo.companions.core.dialogue.IntentType.STAY, stayResp.getIntent().getType());
+        assertEquals("Vou ficar aqui esperando.", stayResp.getSpeech());
+
+        // Dialogo aberto via mock SLM
+        mockClient.setNextResponse("{\"intent\": \"CASUAL_CHAT\", \"speech\": \"Estou pronto para a jornada.\"}");
+        com.thyagotoledo.companions.core.dialogue.DialogueResponse chatResp =
+                hybridProvider.processSync("o que voce acha do dia?", "pt_br", profile, emptyInv, 1000L);
+        assertEquals(com.thyagotoledo.companions.core.dialogue.IntentType.CASUAL_CHAT, chatResp.getIntent().getType());
+        assertEquals("Estou pronto para a jornada.", chatResp.getSpeech());
+        assertEquals(4, memory.size());
+    }
 }
