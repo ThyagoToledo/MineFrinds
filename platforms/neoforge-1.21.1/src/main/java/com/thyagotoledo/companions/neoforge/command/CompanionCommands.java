@@ -296,8 +296,9 @@ public class CompanionCommands {
         }
 
         if (targetChestPos != null) {
-            CompanionManager.setDesignatedChest(player.getUUID(), targetChestPos);
+            CompanionManager.setDesignatedChest(player.getUUID(), targetChestPos, player.serverLevel());
             final BlockPos savedPos = targetChestPos;
+
             source.sendSuccess(() -> Component.literal("Bau designado registrado em [" + savedPos.getX() + ", " + savedPos.getY() + ", " + savedPos.getZ() + "]! O companheiro usara este bau para guardar e buscar itens."), true);
             CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
             if (companion != null) {

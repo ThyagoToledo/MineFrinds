@@ -149,16 +149,16 @@ FunctionGemma 270M pode ser comparado depois como roteador de funções especial
 - guardar logs, versões, hashes, resultados e problemas conhecidos;
 - só então atualizar README/P6–P9 para “homologado”.
 
-## Status da execucao e proximo passo
-
-- **Etapa R0 concluida com sucesso**:
-  - Duplicacao de itens corrigida em `CompanionServerPlayer` com entrega de destino unico.
-  - Consumo de materiais agora e proporcional e transacional; fallback espurio de tabuas de carvalho removido.
-  - Protecao rigorosa de claims e terreno aplicada em `handleWoodMode` (inclusive cascata), `handleMineMode`, `handleFarmMode` e baus via `NeoForgePermissionService`.
-  - Recall seguro implementado no NeoForge 1.21.1 com checagem de dimensao, combate, cooldown e busca de chao solido livre de lava/fogo.
-  - 3 novos testes automatizados adicionados; total de 60 testes JUnit aprovados com 100% de sucesso nos quatro modulos (`:core`, `neoforge-1.21.1`, `forge-1.20.1`, `forge-1.12.2`).
-  - JARs recompilados, distribuidos e hashes SHA-256 atualizados.
+- **Etapa R1 concluida com sucesso**:
+  - DTO canonico `CompanionSnapshot` criado no modulo `:core`, desacoplado do Minecraft e 100% testavel em Java puro.
+  - Rede tipada oficial implementada via `CustomPacketPayload` (`RequestSnapshotPayload`, `SnapshotPayload`, `CommandPayload`, `FeedbackPayload`) e registrada no `RegisterPayloadHandlersEvent` com `StreamCodec`.
+  - Persistencia nativa implementada com `CompanionSavedData extends SavedData` no NeoForge 1.21.1, garantindo persistencia de baus designados e dados de companheiros com schema versionado (`schema_version = 1`).
+  - Preservacao integral de equipamentos: `updateCompanionSkin` e `spawnPlayerCompanion` salvam e restauram os 6 slots de equipamento (elmo, peitoral, calcas, botas, mao secundaria e mao principal), inventario e niveis de experiencia.
+  - Interface grafica `CompanionScreen` vinculada aos dados reais do snapshot de servidor, eliminando completamente strings fixas/falsas na GUI.
+  - 4 novos testes unitarios e de integracao adicionados; total de 64 testes JUnit aprovados com 100% de sucesso nos quatro modulos (`:core`: 20, `neoforge-1.21.1`: 24, `forge-1.20.1`: 15, `forge-1.12.2`: 5).
+  - JARs recompilados, distribuidos e hashes SHA-256 atualizados em `LEIAME-E-HASHES-SHA256.md`.
 
 - **Proxima etapa recomendada**:
-  - **R1 — estado, persistencia e rede**: implementar `CompanionSnapshot` tipado, payloads reais C2S/S2C no NeoForge e vincular a GUI para renderizar vida, modo, inventario e tarefas reais vindos do servidor.
+  - **R2 — IA assincrona real e bilingue**: implementar `InferenceSupervisor` desacoplado, validacao rigorosa de envelopes JSON OpenAI-compatible sem chamadas bloqueantes na thread principal do servidor (`processSync`), com conjunto de avaliacao bilingue de intencoes (pt-BR e en-US).
+
 

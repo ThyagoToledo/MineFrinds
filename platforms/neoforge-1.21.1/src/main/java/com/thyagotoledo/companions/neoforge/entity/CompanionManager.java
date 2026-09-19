@@ -16,22 +16,27 @@ import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
 import com.thyagotoledo.companions.neoforge.service.NeoForgeQuestService;
 import com.thyagotoledo.companions.neoforge.tensura.TensuraCompanionStats;
 import com.thyagotoledo.companions.neoforge.tensura.TensuraNeoOtherworldAdapter;
+import com.thyagotoledo.companions.core.model.CompanionSnapshot;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ClientInformation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+
 
 /**
  * Gerenciador central de instancias de companheiros e bots de jogador fake (ServerPlayer).
@@ -43,18 +48,167 @@ public class CompanionManager {
     private static final Map<UUID, net.minecraft.core.BlockPos> DESIGNATED_CHESTS = new ConcurrentHashMap<>();
 
     public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos) {
+        setDesignatedChest(ownerUuid, pos, null);
+    }
+
+    public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos, ServerLevel level) {
         if (ownerUuid == null) return;
         if (pos == null) {
             DESIGNATED_CHESTS.remove(ownerUuid);
+            if (level != null) {
+                CompanionSavedData savedData = CompanionSavedData.get(level);
+                if (savedData != null) {
+                    savedData.setDesignatedChest(ownerUuid, null);
+                }
+            }
         } else {
             DESIGNATED_CHESTS.put(ownerUuid, pos.immutable());
+            if (level != null) {
+                CompanionSavedData savedData = CompanionSavedData.get(level);
+                if (savedData != null) {
+                    savedData.setDesignatedChest(ownerUuid, pos);
+                }
+            }
         }
     }
 
     public static net.minecraft.core.BlockPos getDesignatedChest(UUID ownerUuid) {
-        if (ownerUuid == null) return null;
-        return DESIGNATED_CHESTS.get(ownerUuid);
+        return getDesignatedChest(ownerUuid, null);
     }
+
+    public static net.minecraft.core.BlockPos getDesignatedChest(UUID ownerUuid, ServerLevel level) {
+        if (ownerUuid == null) return null;
+        net.minecraft.core.BlockPos pos = DESIGNATED_CHESTS.get(ownerUuid);
+        if (pos == null && level != null) {
+            CompanionSavedData savedData = CompanionSavedData.get(level);
+            if (savedData != null) {
+                pos = savedData.getDesignatedChest(ownerUuid);
+                if (pos != null) {
+                    DESIGNATED_CHESTS.put(ownerUuid, pos.immutable());
+                }
+            }
+        }
+        return pos;
+    }
+
+    public static CompanionSnapshot buildSnapshot(UUID ownerUuid) {
+        return buildSnapshot(ownerUuid, null);
+    }
+
+    public static CompanionSnapshot buildSnapshot(UUID ownerUuid, ServerLevel level) {
+        if (ownerUuid == null) {
+            return CompanionSnapshot.empty(null);
+        }
+
+        CompanionServerPlayer fakePlayer = FAKE_PLAYERS_BY_OWNER.get(ownerUuid);
+        NeoForgeCompanionEntity entity = COMPANIONS_BY_OWNER.get(ownerUuid);
+        net.minecraft.core.BlockPos chestPos = getDesignatedChest(ownerUuid, level);
+
+        boolean hasChest = chestPos != null;
+        int cx = hasChest ? chestPos.getX() : 0;
+        int cy = hasChest ? chestPos.getY() : 0;
+        int cz = hasChest ? chestPos.getZ() : 0;
+
+        boolean tensuraLoaded = false;
+        try {
+            tensuraLoaded = net.neoforged.fml.ModList.get() != null && net.neoforged.fml.ModList.get().isLoaded("tensura");
+        } catch (Throwable ignored) {
+        }
+
+        String tensuraRace = "Humano";
+        String tensuraRank = "F";
+        long tensuraEp = 0L;
+
+        if (entity != null && entity.getTensuraStats() != null) {
+            tensuraRace = entity.getTensuraStats().getRace() != null ? entity.getTensuraStats().getRace().getDisplayName("pt_br") : "Humano";
+            tensuraRank = entity.getTensuraStats().getRank();
+            tensuraEp = entity.getTensuraStats().getEvolutionPoints();
+        }
+
+
+        if (fakePlayer != null) {
+            return new CompanionSnapshot(
+                    fakePlayer.getUUID(),
+                    ownerUuid,
+                    fakePlayer.getName().getString(),
+                    fakePlayer.getMode(),
+                    fakePlayer.getHealth(),
+                    fakePlayer.getMaxHealth(),
+                    true,
+                    true,
+                    entity != null ? entity.getCustomSkin() : "",
+                    hasChest,
+                    cx,
+                    cy,
+                    cz,
+                    tensuraLoaded,
+                    tensuraRace,
+                    tensuraRank,
+                    tensuraEp,
+                    "Companheiro ativo e operando."
+            );
+        }
+
+        if (entity != null) {
+            return new CompanionSnapshot(
+                    entity.getProfile().getId(),
+                    ownerUuid,
+                    entity.getProfile().getName(),
+                    entity.getMode(),
+                    20.0f,
+                    20.0f,
+                    false,
+                    false,
+                    entity.getCustomSkin(),
+                    hasChest,
+                    cx,
+                    cy,
+                    cz,
+                    tensuraLoaded,
+                    tensuraRace,
+                    tensuraRank,
+                    tensuraEp,
+                    "Companheiro registrado (aguardando invocacao)."
+            );
+        }
+
+        if (level != null) {
+            CompanionSavedData savedData = CompanionSavedData.get(level);
+            if (savedData != null) {
+                CompanionSavedData.CompanionStateRecord rec = savedData.getCompanionRecord(ownerUuid);
+                if (rec != null) {
+                    CompanionMode mode = CompanionMode.FOLLOW;
+                    try {
+                        mode = CompanionMode.valueOf(rec.getMode());
+                    } catch (Exception ignored) {
+                    }
+                    return new CompanionSnapshot(
+                            null,
+                            ownerUuid,
+                            rec.getName(),
+                            mode,
+                            20.0f,
+                            20.0f,
+                            false,
+                            false,
+                            rec.getSkin(),
+                            hasChest,
+                            cx,
+                            cy,
+                            cz,
+                            tensuraLoaded,
+                            tensuraRace,
+                            tensuraRank,
+                            rec.getTensuraEp(),
+                            "Companheiro carregado da persistencia do mundo."
+                    );
+                }
+            }
+        }
+
+        return CompanionSnapshot.empty(ownerUuid);
+    }
+
 
     public static NeoForgeCompanionEntity getCompanionForOwner(UUID ownerUuid) {
         if (ownerUuid == null) return null;
@@ -180,12 +334,21 @@ public class CompanionManager {
         server.getPlayerList().placeNewPlayer(fakeConn, fakePlayer, cookie);
 
         FAKE_PLAYERS_BY_OWNER.put(ownerUuid, fakePlayer);
+
+        if (owner.serverLevel() != null) {
+            CompanionSavedData savedData = CompanionSavedData.get(owner.serverLevel());
+            if (savedData != null) {
+                long ep = dataEntity.getTensuraStats() != null ? dataEntity.getTensuraStats().getEvolutionPoints() : 0L;
+                savedData.saveCompanionRecord(ownerUuid, finalName, customSkin, dataEntity.getMode().name(), dataEntity.getPersonality().name(), ep);
+            }
+        }
+
         return fakePlayer;
     }
 
     /**
      * Atualiza a skin do companheiro ativo em tempo real.
-     * Preserva posicao, inventario, vida e modo do bot.
+     * Preserva posicao, inventario, equipamentos completos, experiencia, vida e modo do bot.
      */
     public static boolean updateCompanionSkin(ServerPlayer owner, String skinName) {
         if (owner == null) return false;
@@ -209,9 +372,18 @@ public class CompanionManager {
         CompanionMode mode = existing.getMode();
         String companionName = existing.getName().getString();
 
+        int expLevel = existing.experienceLevel;
+        int totalExp = existing.totalExperience;
+        float expProgress = existing.experienceProgress;
+
         ItemStack[] savedInventory = new ItemStack[36];
         for (int i = 0; i < 36; i++) {
             savedInventory[i] = existing.getInventory().getItem(i).copy();
+        }
+
+        Map<EquipmentSlot, ItemStack> savedEquipment = new EnumMap<>(EquipmentSlot.class);
+        for (EquipmentSlot slot : EquipmentSlot.values()) {
+            savedEquipment.put(slot, existing.getItemBySlot(slot).copy());
         }
 
         // Remove o bot antigo sem broadcast de saida
@@ -244,6 +416,9 @@ public class CompanionManager {
         newBot.setYHeadRot(yRot);
         newBot.setHealth(health);
         newBot.setMode(mode);
+        newBot.setExperienceLevels(expLevel);
+        newBot.setExperiencePoints(totalExp);
+        newBot.experienceProgress = expProgress;
 
         for (int i = 0; i < 36; i++) {
             if (savedInventory[i] != null && !savedInventory[i].isEmpty()) {
@@ -251,12 +426,28 @@ public class CompanionManager {
             }
         }
 
+        for (Map.Entry<EquipmentSlot, ItemStack> entry : savedEquipment.entrySet()) {
+            if (entry.getValue() != null && !entry.getValue().isEmpty()) {
+                newBot.setItemSlot(entry.getKey(), entry.getValue());
+            }
+        }
+
         CommonListenerCookie cookie = new CommonListenerCookie(newProfile, 0, clientInfo, false);
         server.getPlayerList().placeNewPlayer(fakeConn, newBot, cookie);
 
         FAKE_PLAYERS_BY_OWNER.put(ownerUuid, newBot);
+
+        if (owner.serverLevel() != null) {
+            CompanionSavedData savedData = CompanionSavedData.get(owner.serverLevel());
+            if (savedData != null) {
+                long ep = dataEntity.getTensuraStats() != null ? dataEntity.getTensuraStats().getEvolutionPoints() : 0L;
+                savedData.saveCompanionRecord(ownerUuid, companionName, skinName, mode.name(), dataEntity.getPersonality().name(), ep);
+            }
+        }
+
         return true;
     }
+
 
     private static void applySkinToProfile(GameProfile profile, ServerPlayer owner, String skinName) {
         if (skinName == null || skinName.trim().isEmpty() ||

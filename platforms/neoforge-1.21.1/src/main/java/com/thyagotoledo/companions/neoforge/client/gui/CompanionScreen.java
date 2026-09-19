@@ -1,5 +1,8 @@
 package com.thyagotoledo.companions.neoforge.client.gui;
 
+import com.thyagotoledo.companions.core.model.CompanionSnapshot;
+import com.thyagotoledo.companions.neoforge.network.NeoForgeCompanionPayloads;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -8,6 +11,7 @@ import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.fml.ModList;
+import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
 
 /**
@@ -38,6 +42,10 @@ public class CompanionScreen extends Screen {
     private final Screen parentScreen;
     private Tab currentTab = Tab.ACTIONS;
 
+    // Snapshot em tempo real recebido do servidor via CustomPacketPayload
+    private static CompanionSnapshot activeSnapshot = null;
+    private static String pendingStatusFeedback = null;
+
     // Campos de input
     private EditBox chatBox;
     private EditBox skinBox;
@@ -47,6 +55,21 @@ public class CompanionScreen extends Screen {
     private static boolean modelSlimActive = false;
 
     private String lastStatusMessage = "Pronto para receber ordens.";
+
+    public static void setActiveSnapshot(CompanionSnapshot snapshot) {
+        activeSnapshot = snapshot;
+    }
+
+    public static CompanionSnapshot getActiveSnapshot() {
+        return activeSnapshot;
+    }
+
+    public static void setLastStatusFeedback(String speech) {
+        if (speech != null && !speech.trim().isEmpty()) {
+            pendingStatusFeedback = speech.trim();
+        }
+    }
+
 
     public CompanionScreen(Screen parentScreen) {
         super(Component.literal("Companions - Painel de Controle"));
@@ -65,6 +88,17 @@ public class CompanionScreen extends Screen {
     protected void init() {
         super.init();
 
+        if (pendingStatusFeedback != null) {
+            this.lastStatusMessage = pendingStatusFeedback;
+            pendingStatusFeedback = null;
+        }
+
+        // Solicita snapshot atualizado do servidor via CustomPacketPayload
+        try {
+            PacketDistributor.sendToServer(new NeoForgeCompanionPayloads.RequestSnapshotPayload());
+        } catch (Throwable ignored) {
+        }
+
         int panelWidth = 350;
         int panelHeight = 220;
         int left = (this.width - panelWidth) / 2;
@@ -74,6 +108,7 @@ public class CompanionScreen extends Screen {
         int tabW = 100;
         int tabH = 18;
         int tabY = top + 22;
+
 
         addRenderableWidget(Button.builder(Component.literal("1. Acoes"), b -> switchTab(Tab.ACTIONS))
                 .bounds(left + 14, tabY, tabW, tabH)
@@ -428,14 +463,20 @@ public class CompanionScreen extends Screen {
         // Divisoria vertical
         guiGraphics.fill(left + 174, top + 46, left + 175, top + 174, 0xFF33354A);
 
-        // Coluna Esquerda: Dados de Sobrevivencia Vanilla
-        guiGraphics.drawString(this.font, "Companheiro:", left + 14, top + 46, 0xFFAAAAAA);
-        guiGraphics.drawString(this.font, "Presenca: Jogador Real", left + 14, top + 56, 0xFF55FFFF);
-        guiGraphics.drawString(this.font, "Modo: SEGUINDO", left + 14, top + 68, 0xFF55FF55);
-        guiGraphics.drawString(this.font, "Vida: 20 / 20", left + 14, top + 80, 0xFFFF5555);
+        CompanionSnapshot s = activeSnapshot != null ? activeSnapshot : CompanionSnapshot.empty(null);
 
-        // Mensagem de feedback de ordem
-        guiGraphics.drawString(this.font, this.lastStatusMessage, left + 14, top + 168, 0xFFFFFF55);
+        // Coluna Esquerda: Dados de Sobrevivencia Vanilla Reais
+        guiGraphics.drawString(this.font, "Companheiro: " + s.getName(), left + 14, top + 46, 0xFFAAAAAA);
+        guiGraphics.drawString(this.font, "Presenca: " + s.getPresenceDisplay(), left + 14, top + 56, 0xFF55FFFF);
+        guiGraphics.drawString(this.font, "Modo: " + s.getModeDisplay(), left + 14, top + 68, 0xFF55FF55);
+        guiGraphics.drawString(this.font, "Vida: " + s.getHealthDisplay(), left + 14, top + 80, 0xFFFF5555);
+        guiGraphics.drawString(this.font, "Bau: " + s.getChestDisplay(), left + 14, top + 92, 0xFFAAAAFF);
+
+        // Mensagem de feedback de ordem ou ultimo status do bot
+        String displayMsg = (this.lastStatusMessage != null && !this.lastStatusMessage.isEmpty() && !this.lastStatusMessage.equals("Pronto para receber ordens."))
+                ? this.lastStatusMessage
+                : s.getLastMessage();
+        guiGraphics.drawString(this.font, displayMsg, left + 14, top + 168, 0xFFFFFF55);
     }
 
     private void renderSkinsTab(GuiGraphics guiGraphics, int left, int top) {
@@ -451,10 +492,13 @@ public class CompanionScreen extends Screen {
     private void renderIntegrationsTab(GuiGraphics guiGraphics, int left, int top) {
         guiGraphics.drawString(this.font, "Modpacks Especiais & Integracoes", left + 14, top + 74, 0xFF55FFFF);
 
-        if (tensuraIntegrationActive) {
+        CompanionSnapshot s = activeSnapshot != null ? activeSnapshot : CompanionSnapshot.empty(null);
+        boolean isTensura = tensuraIntegrationActive || s.isTensuraActive();
+
+        if (isTensura) {
             guiGraphics.drawString(this.font, "Modpack Alvo: Tensura Neo Otherworld", left + 14, top + 86, 0xFF00FF88);
-            guiGraphics.drawString(this.font, "Raca: Kijin (Evoluido) | Rank: Special A", left + 14, top + 98, 0xFFFFD700);
-            guiGraphics.drawString(this.font, "Valor Existencia (EP): 25.000 | Magiculas: Altas", left + 14, top + 110, 0xFF55FFFF);
+            guiGraphics.drawString(this.font, "Raca: " + s.getTensuraRace() + " | Rank: " + s.getTensuraRank(), left + 14, top + 98, 0xFFFFD700);
+            guiGraphics.drawString(this.font, "Valor Existencia (EP): " + String.format(java.util.Locale.ROOT, "%,d", s.getTensuraEp()), left + 14, top + 110, 0xFF55FFFF);
         } else {
             guiGraphics.drawString(this.font, "Ambiente Vanilla Ativo.", left + 14, top + 90, 0xFFFFFFFF);
             guiGraphics.drawString(this.font, "Nenhuma integracao de fantasia ativada no momento.", left + 14, top + 104, 0xFFAAAAAA);
@@ -463,6 +507,7 @@ public class CompanionScreen extends Screen {
 
         guiGraphics.drawString(this.font, this.lastStatusMessage, left + 14, top + 186, 0xFFFFFF55);
     }
+
 
     @Override
     public boolean isPauseScreen() {

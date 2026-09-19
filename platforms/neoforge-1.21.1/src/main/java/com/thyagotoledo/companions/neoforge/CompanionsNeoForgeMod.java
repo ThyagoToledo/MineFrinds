@@ -2,6 +2,7 @@ package com.thyagotoledo.companions.neoforge;
 
 import com.thyagotoledo.companions.neoforge.client.CompanionsClientEvents;
 import com.thyagotoledo.companions.neoforge.command.CompanionCommands;
+import com.thyagotoledo.companions.neoforge.network.NeoForgeCompanionPayloads;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
@@ -26,6 +27,8 @@ public class CompanionsNeoForgeMod {
         NeoForge.EVENT_BUS.register(CompanionsClientEvents.class);
         if (modEventBus != null) {
             modEventBus.addListener(CompanionsClientEvents::onRegisterKeyMappings);
+            modEventBus.addListener(NeoForgeCompanionPayloads::onRegisterPayloadHandlers);
         }
     }
 }
+

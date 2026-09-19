@@ -101,6 +101,11 @@ public class TensuraCompanionStats {
         return existenceValue;
     }
 
+    public long getEvolutionPoints() {
+        return existenceValue;
+    }
+
+
     public void setExistenceValue(long existenceValue) {
         this.existenceValue = Math.max(0, existenceValue);
     }

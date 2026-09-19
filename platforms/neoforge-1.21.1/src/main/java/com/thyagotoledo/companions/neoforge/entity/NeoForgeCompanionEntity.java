@@ -159,9 +159,15 @@ public class NeoForgeCompanionEntity {
         return currentMode;
     }
 
+    public Personality getPersonality() {
+        return profile != null ? profile.getPersonality() : Personality.BALANCED;
+    }
+
+
     public void setMode(CompanionMode mode) {
         if (mode != null) {
             this.currentMode = mode;
         }
     }
 }
+

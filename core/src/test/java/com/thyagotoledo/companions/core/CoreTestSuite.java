@@ -384,6 +384,84 @@ public class CoreTestSuite {
     }
 
     @Test
+    public void testCompanionSnapshotContract() {
+        UUID ownerUuid = UUID.randomUUID();
+        CompanionSnapshot empty = CompanionSnapshot.empty(ownerUuid);
+        assertEquals(ownerUuid, empty.getOwnerUuid());
+        assertNull(empty.getCompanionUuid());
+        assertEquals(CompanionMode.IDLE, empty.getMode());
+        assertEquals(0.0f, empty.getCurrentHealth(), 0.001f);
+        assertEquals(20.0f, empty.getMaxHealth(), 0.001f);
+        assertFalse(empty.isSpawned());
+        assertFalse(empty.isFakePlayer());
+        assertFalse(empty.hasDesignatedChest());
+        assertEquals("Nenhum bau marcado", empty.getChestDisplay());
+        assertEquals("0 / 20", empty.getHealthDisplay());
+        assertEquals("Ausente (Nao invocado)", empty.getPresenceDisplay());
+
+        UUID compUuid = UUID.randomUUID();
+        CompanionSnapshot custom = new CompanionSnapshot(
+                compUuid,
+                ownerUuid,
+                "Rimuru",
+                CompanionMode.WOOD,
+                18.5f,
+                20.0f,
+                true,
+                true,
+                "Rimuru",
+                true,
+                100,
+                64,
+                -200,
+                true,
+                "Slime/Demon Lord",
+                "Special S",
+                5000000L,
+                "Coletando madeira na floresta."
+        );
+
+        assertEquals(compUuid, custom.getCompanionUuid());
+        assertEquals("Rimuru", custom.getName());
+        assertEquals(CompanionMode.WOOD, custom.getMode());
+        assertTrue(custom.isSpawned());
+        assertTrue(custom.isFakePlayer());
+        assertTrue(custom.hasDesignatedChest());
+        assertEquals("[100, 64, -200]", custom.getChestDisplay());
+        assertEquals("19 / 20", custom.getHealthDisplay());
+        assertEquals("Jogador Oficial (Lan/Server)", custom.getPresenceDisplay());
+        assertTrue(custom.isTensuraActive());
+        assertEquals("Slime/Demon Lord", custom.getTensuraRace());
+        assertEquals("Special S", custom.getTensuraRank());
+        assertEquals(5000000L, custom.getTensuraEp());
+        assertEquals("Coletando madeira na floresta.", custom.getLastMessage());
+
+        CompanionSnapshot equalSnapshot = new CompanionSnapshot(
+                compUuid,
+                ownerUuid,
+                "Rimuru",
+                CompanionMode.WOOD,
+                18.5f,
+                20.0f,
+                true,
+                true,
+                "Rimuru",
+                true,
+                100,
+                64,
+                -200,
+                true,
+                "Slime/Demon Lord",
+                "Special S",
+                5000000L,
+                "Coletando madeira na floresta."
+        );
+        assertEquals(custom, equalSnapshot);
+        assertEquals(custom.hashCode(), equalSnapshot.hashCode());
+        assertTrue(custom.toString().contains("Rimuru"));
+    }
+
+    @Test
     public void testHttpInferenceClientQueueLimitAndContract() {
         com.thyagotoledo.companions.core.ai.HttpInferenceClient client =
                 new com.thyagotoledo.companions.core.ai.HttpInferenceClient("http://127.0.0.1:8080/v1/chat/completions", 1500);
@@ -393,3 +471,5 @@ public class CoreTestSuite {
         assertDoesNotThrow(client::shutdown);
     }
 }
+
+
