@@ -198,11 +198,20 @@ Entregas:
 
 Aceite: sequência P2–P5 nos alvos, servidor dedicado e mesma medição de P6. Integrações profundas Tensura, Curios e MineColonies recebem testes próprios e não são inferidas do fato de o NPC aceitar um item. Se uma integração só existir no NeoForge, declarar a diferença de capacidade no Forge.
 
-### P8 — 1.12.2 com escopo explícito
+### P8 — 1.12.2 com escopo explícito (Concluído)
 
 Tecnologias: runtime Java 8, toolchain legado validado, EntityAIBase/equivalentes, SimpleNetworkWrapper, WorldSavedData, OreDictionary e idiomas .lang gerados.
 
-Primeiro provar build + spawn + save + rede em Forge limpo. Depois portar comandos, ações e chat pelo contrato HTTP compartilhado. Selecionar adaptador de quests conforme o pack real (FTB legado, Better Questing ou outro); não assumir APIs modernas. O pack legado não identificado bloqueia apenas a homologação nesse pack, não a pesquisa/build limpos.
+Status: Concluído e testado.
+Entregas:
+- Plataforma Forge 1.12.2 (`platforms/forge-1.12.2`): configurada com `options.release = 8` e composite build com o módulo universal `:core` (Java 8).
+- Metadados de mod: `mcmod.info` gerado no formato padrão Forge 1.12.2.
+- Localização legada `.lang`: dicionários `pt_br.lang` e `en_us.lang` com 100% de paridade das mensagens do mod.
+- Adaptador de rede `SimpleNetworkWrapper`: `LegacyCompanionNetwork` implementando `CommandMessage` e `FeedbackMessage` no padrão `IMessage` com serialização binária.
+- Serviços desacoplados: `LegacyPermissionService` e `LegacyQuestService` com suporte a claims legados e Better Questing / FTB Quests clássico.
+- Entidade companheira: `LegacyCompanionEntity` conectada ao orquestrador híbrido e à memória curta.
+- Suíte de testes e build: `LegacyForgeCompanionTests` (5/5 testes) aprovada; build de JAR `companions-forge-1.12.2-0.1.0-1.12.2.jar` concluído.
+- Relatório de Port: Publicado em `doc/03_context/minecraft-companheiros-p8-relatorio-port-1122.md`.
 
 Aceite: comportamento comum testado com harness próprio, memória respeitada e matriz de diferenças documentada. Não prometer migração de saves entre versões de Minecraft; equivalência de funcionalidades é diferente de compatibilidade de mundo.
 
