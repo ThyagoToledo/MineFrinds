@@ -31,6 +31,8 @@ public class NeoForgeCompanionEntity {
     private final TensuraCompanionStats tensuraStats;
     private final TensuraNeoOtherworldAdapter tensuraAdapter;
     private InventorySnapshot inventory;
+    private String customSkin = "";
+    private boolean modelSlim = false;
 
     public NeoForgeCompanionEntity(UUID ownerUuid, String name, Personality personality,
                                   HybridDialogueProvider dialogueProvider,
@@ -61,6 +63,8 @@ public class NeoForgeCompanionEntity {
         this.tensuraStats = tensuraStats != null ? tensuraStats : new TensuraCompanionStats();
         this.tensuraAdapter = tensuraAdapter != null ? tensuraAdapter : new TensuraNeoOtherworldAdapter();
         this.inventory = new InventorySnapshot(Collections.<ItemSlot>emptyList(), 27);
+        this.customSkin = "";
+        this.modelSlim = false;
     }
 
     public DialogueResponse handleCommand(String rawCommand, String preferredLocale) {
@@ -123,5 +127,41 @@ public class NeoForgeCompanionEntity {
 
     public void setInventory(InventorySnapshot inventory) {
         this.inventory = inventory != null ? inventory : new InventorySnapshot(Collections.<ItemSlot>emptyList(), 27);
+    }
+
+    public String getCustomSkin() {
+        return customSkin;
+    }
+
+    public void setCustomSkin(String customSkin) {
+        this.customSkin = customSkin != null ? customSkin.trim() : "";
+    }
+
+    private CompanionMode currentMode = CompanionMode.FOLLOW;
+
+    public boolean isModelSlim() {
+        return modelSlim;
+    }
+
+    public void setModelSlim(boolean modelSlim) {
+        this.modelSlim = modelSlim;
+    }
+
+    public UUID getOwnerUuid() {
+        return profile != null ? profile.getOwnerId() : null;
+    }
+
+    public String getName() {
+        return profile != null ? profile.getName() : "Companheiro";
+    }
+
+    public CompanionMode getMode() {
+        return currentMode;
+    }
+
+    public void setMode(CompanionMode mode) {
+        if (mode != null) {
+            this.currentMode = mode;
+        }
     }
 }
