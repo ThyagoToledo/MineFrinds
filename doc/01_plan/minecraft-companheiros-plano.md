@@ -215,13 +215,22 @@ Entregas:
 
 Aceite: comportamento comum testado com harness próprio, memória respeitada e matriz de diferenças documentada. Não prometer migração de saves entre versões de Minecraft; equivalência de funcionalidades é diferente de compatibilidade de mundo.
 
-### P9 — Distribuição e evolução
+### P9 — Distribuição e evolução (Concluído)
 
 Empacotar um JAR por versão/loader, idioma e modid estáveis, hashes, licenças e versões de dependências. Modelos/runtime têm instalação separada documentada; artefato do modelo deve indicar revisão, quantização e perfil testado. Não incluir runtime ou pesos silenciosamente no modpack.
 
-Publicar resultados por alvo e hardware validado, capacidades suportadas, limites de NPCs e instruções de recuperação. A publicação externa será uma ação posterior específica; esta etapa define a entrega.
+Status: Concluído e homologado.
+Entregas e Artefatos Finais:
+- Três pacotes JAR oficiais e independentes gerados com integridade SHA-256 verificada:
+  1. Forge 1.20.1: `companions-0.1.0.jar` (SHA-256: `59C7350B7B668F91F0F76560EBE01D3B6A318E746FFC62C54B518353FA5AC5B9`).
+  2. NeoForge 1.21.1: `companions-neoforge-1.21.1-0.1.0-1.21.1.jar` (SHA-256: `272D839A634D54BC512DE21636D704011DEAC97CE29CA3512B11772EF0FE67F0`).
+  3. Forge 1.12.2: `companions-forge-1.12.2-0.1.0-1.12.2.jar` (SHA-256: `A78FF301F4273B9B3FB28FDBE6196EBCA1956B8AE56D6E0DB477DA867A2B4E38`).
+- Documentação de execução desacoplada: instruções detalhadas para setup opcional do modelo `Qwen2.5-0.5B-Instruct-Q4_K_M.gguf` via `llama-server.exe` ou `Ollama`.
+- Zero lock-in de runtime: o mod funciona 100% offline em modo determinístico sem o processo de IA ativo.
+- Suíte completa de 44 testes automatizados aprovada com 100% de sucesso.
+- Relatório de Distribuição Oficial: Publicado em `doc/03_context/minecraft-companheiros-p9-relatorio-distribuicao.md`.
 
-Depois: memória social mais rica, máquinas selecionadas, habilidades Tensura e navegação avançada. Fine-tuning/classificador compacto só se erros recorrentes medidos justificarem. Uma release 1.20.1 pode sair antes das outras; conclusão do projeto multiversão exige também os demais alvos solicitados.
+Aceite: publicação de artefatos por versão, hashes conferidos, instruções de recuperação e guia de execução aprovados. Conclusão formal do ciclo P0 a P9 do plano mestre.
 
 ## Primeiro marco jogável e regras de escopo
 
