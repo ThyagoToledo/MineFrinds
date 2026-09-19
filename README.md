@@ -152,6 +152,7 @@ Tambem e possivel alternar rapidamente entre os modos de postura clicando com o 
 
 Toda a especificacao tecnica, os estudos de hardware, relatorios de qualificacao e os planos estao estruturados na pasta [`doc/`](doc/):
 
+- **[Documentacao Geral de Arquitetura e Funcionalidades](doc/03_context/minecraft-companheiros-documentacao-geral-arquitetura-e-funcionalidades.md)**: Guia completo consolidando todas as funcionalidades (corte em cascata, inventario com armaduras, agricultura, auto-equip, skins oficiais Mojang, dano real e crafting autonomo).
 - **[Plano Mestre Executavel (P0 a P9)](doc/01_plan/minecraft-companheiros-plano.md)**: Roadmap do projeto detalhando marcos P0 a P9 com todos os criterios de aceite homologados.
 - **[Especificacao Tecnica de Arquitetura](doc/00_spec/minecraft-companheiros-arquitetura-tecnica.md)**: Contratos Java, orcamento de RAM e isolamento de sidedness.
 - **[Design Visual, Interface e Assets](doc/02_design/minecraft-companheiros-interface-assets.md)**: Padroes de skins 64x64, paletas de cores, layout da GUI e camera de vigia.
