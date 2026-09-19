@@ -10,6 +10,8 @@ import com.thyagotoledo.companions.core.model.ItemSlot;
 import com.thyagotoledo.companions.core.model.Personality;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
 import com.thyagotoledo.companions.neoforge.service.NeoForgeQuestService;
+import com.thyagotoledo.companions.neoforge.tensura.TensuraCompanionStats;
+import com.thyagotoledo.companions.neoforge.tensura.TensuraNeoOtherworldAdapter;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -26,12 +28,24 @@ public class NeoForgeCompanionEntity {
     private final NeoForgePermissionService permissionService;
     private final NeoForgeQuestService questService;
 
+    private final TensuraCompanionStats tensuraStats;
+    private final TensuraNeoOtherworldAdapter tensuraAdapter;
     private InventorySnapshot inventory;
 
     public NeoForgeCompanionEntity(UUID ownerUuid, String name, Personality personality,
                                   HybridDialogueProvider dialogueProvider,
                                   NeoForgePermissionService permissionService,
                                   NeoForgeQuestService questService) {
+        this(ownerUuid, name, personality, dialogueProvider, permissionService, questService,
+                new TensuraCompanionStats(), new TensuraNeoOtherworldAdapter());
+    }
+
+    public NeoForgeCompanionEntity(UUID ownerUuid, String name, Personality personality,
+                                  HybridDialogueProvider dialogueProvider,
+                                  NeoForgePermissionService permissionService,
+                                  NeoForgeQuestService questService,
+                                  TensuraCompanionStats tensuraStats,
+                                  TensuraNeoOtherworldAdapter tensuraAdapter) {
         this.entityUuid = UUID.randomUUID();
         this.profile = new CompanionProfile(
                 this.entityUuid,
@@ -44,6 +58,8 @@ public class NeoForgeCompanionEntity {
         this.dialogueProvider = dialogueProvider;
         this.permissionService = permissionService != null ? permissionService : new NeoForgePermissionService();
         this.questService = questService != null ? questService : new NeoForgeQuestService();
+        this.tensuraStats = tensuraStats != null ? tensuraStats : new TensuraCompanionStats();
+        this.tensuraAdapter = tensuraAdapter != null ? tensuraAdapter : new TensuraNeoOtherworldAdapter();
         this.inventory = new InventorySnapshot(Collections.<ItemSlot>emptyList(), 27);
     }
 
@@ -51,7 +67,30 @@ public class NeoForgeCompanionEntity {
         if (dialogueProvider == null) {
             return null;
         }
-        return dialogueProvider.processSync(rawCommand, preferredLocale, profile, inventory, 1500L);
+        DialogueResponse response = dialogueProvider.processSync(rawCommand, preferredLocale, profile, inventory, 1500L);
+        if (response != null && response.getIntent() != null) {
+            if (response.getIntent().getType() == com.thyagotoledo.companions.core.dialogue.IntentType.TENSURA_STATUS) {
+                String formatted = tensuraAdapter.formatTensuraStatus(tensuraStats, preferredLocale);
+                return new DialogueResponse(response.getLocale(), formatted, response.getIntent());
+            } else if (response.getIntent().getType() == com.thyagotoledo.companions.core.dialogue.IntentType.NAME_GIVING) {
+                String newName = profile.getName();
+                tensuraAdapter.nameCompanion(tensuraStats, newName);
+                String raceName = tensuraStats.getRace().getDisplayName(preferredLocale);
+                String msg = (preferredLocale != null && preferredLocale.toLowerCase().startsWith("pt"))
+                        ? String.format("Com o nome %s concedido por meu mestre, sinto minhas magiculas despertarem e evoluo para a raca %s!", newName, raceName)
+                        : String.format("With the name %s bestowed by my master, I feel my magicules awaken and evolve into race %s!", newName, raceName);
+                return new DialogueResponse(response.getLocale(), msg, response.getIntent());
+            }
+        }
+        return response;
+    }
+
+    public TensuraCompanionStats getTensuraStats() {
+        return tensuraStats;
+    }
+
+    public TensuraNeoOtherworldAdapter getTensuraAdapter() {
+        return tensuraAdapter;
     }
 
     public UUID getEntityUuid() {

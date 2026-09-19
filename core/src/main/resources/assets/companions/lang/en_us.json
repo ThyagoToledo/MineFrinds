@@ -21,5 +21,8 @@
   "quest.missing": "For quest {0}, you still need: {1}.",
   "quest.raw_materials": "Suggested raw materials to gather: {0}.",
   "quest.unknown_process": "This quest requires specialized machinery or processes not in the standard catalog.",
-  "quest.not_found": "No matching active quest was found."
+  "quest.not_found": "No matching active quest was found.",
+  "tensura.status.report": "Tensura Report: Race {0}, Rank {1}, EP: {2}, Magicules: {3}, Aura: {4}.",
+  "tensura.name.evolved": "With the name {0} bestowed by my master, I feel my magicules awaken and evolve into race {1}!",
+  "tensura.magicule.safe": "This area has high magicule density, but my magical constitution keeps me safe."
 }

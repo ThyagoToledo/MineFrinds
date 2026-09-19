@@ -33,3 +33,6 @@ quest.missing=For quest %s, you still need: %s.
 quest.raw_materials=Suggested raw materials to gather: %s.
 quest.unknown_process=This quest requires specialized machinery or processes not in the standard catalog.
 quest.not_found=No matching active quest was found.
+tensura.status.report=Tensura Report: Race %s, Rank %s, EP: %s, Magicules: %s, Aura: %s.
+tensura.name.evolved=With the name %s bestowed by my master, I feel my magicules awaken and evolve into race %s!
+tensura.magicule.safe=This area has high magicule density, but my magical constitution keeps me safe.

@@ -21,5 +21,8 @@
   "quest.missing": "Para a missao {0}, ainda faltam: {1}.",
   "quest.raw_materials": "Materiais brutos sugeridos para coleta: {0}.",
   "quest.unknown_process": "Esta missao exige maquinario ou processo especial nao disponivel no catalogo comum.",
-  "quest.not_found": "Nenhuma missao ativa correspondente foi encontrada."
+  "quest.not_found": "Nenhuma missao ativa correspondente foi encontrada.",
+  "tensura.status.report": "Relatorio Tensura: Raca {0}, Rank {1}, EP: {2}, Magiculas: {3}, Aura: {4}.",
+  "tensura.name.evolved": "Com o nome {0} concedido por meu mestre, sinto minhas magiculas despertarem e evoluo para a raca {1}!",
+  "tensura.magicule.safe": "Esta regiao possui alta densidade de magiculas, mas minha constituicao magica me mantem seguro."
 }

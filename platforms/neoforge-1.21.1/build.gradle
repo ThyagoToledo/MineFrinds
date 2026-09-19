@@ -47,3 +47,21 @@ tasks.named('jar', Jar).configure {
         ])
     }
 }
+
+tasks.register('tensuraJar', Jar) {
+    from sourceSets.main.output
+    archiveBaseName = "${mod_id}-neoforge-1.21.1-tensura-neo-otherworld"
+    archiveVersion = "${mod_version}"
+    manifest {
+        attributes([
+                'Specification-Title'     : "${mod_id}-tensura-neo-otherworld",
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : "${project.name}-tensura-neo-otherworld",
+                'Implementation-Version'  : archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Implementation-Timestamp': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                'Modpack-Target'          : 'Tensura Neo Otherworld'
+        ])
+    }
+}

@@ -55,8 +55,9 @@ MineFrinds/
 |   `-- src/test/java/                  # 19 testes unitarios e QualificationHarness
 |-- platforms/
 |   |-- forge-1.20.1/                   # Plataforma Forge 1.20.1 (Java 17)
-|   |-- neoforge-1.21.1/                # Plataforma NeoForge 1.21.1 (Java 21 / CustomPacketPayload)
+|   |-- neoforge-1.21.1/                # Plataforma NeoForge 1.21.1 (Java 21 / Tensura Neo Otherworld)
 |   `-- forge-1.12.2/                   # Plataforma Forge 1.12.2 legada (Java 8 / IMessage)
+|-- jars-do-mod-para-cada-versao/       # Pasta centralizada com os JARs de release de todas as versoes
 |-- doc/
 |   |-- 00_spec/                        # Especificacao tecnica de arquitetura e contratos
 |   |-- 01_plan/                        # Roadmap executavel de etapas (P0 a P9 concluidos)
@@ -84,7 +85,7 @@ git clone https://github.com/ThyagoToledo/MineFrinds.git
 cd MineFrinds
 ```
 
-### 2. Executar Todas as Suites de Teste
+### 2. Executar Todas as Suites de Teste (49 testes)
 ```bash
 # Testes do modulo universal core (19 testes)
 cd platforms/forge-1.20.1
@@ -93,7 +94,7 @@ cd platforms/forge-1.20.1
 # Testes da plataforma Forge 1.20.1 (15 testes)
 ./gradlew test
 
-# Testes da plataforma NeoForge 1.21.1 (5 testes)
+# Testes da plataforma NeoForge 1.21.1 e Tensura Neo Otherworld (10 testes)
 cd ../neoforge-1.21.1
 ./gradlew test
 
@@ -108,14 +109,18 @@ cd ../forge-1.12.2
 cd platforms/forge-1.20.1 && ./gradlew jar
 # Saida: platforms/forge-1.20.1/build/libs/companions-0.1.0.jar
 
-# NeoForge 1.21.1
-cd platforms/neoforge-1.21.1 && ./gradlew jar
+# NeoForge 1.21.1 (Padrao e Tensura Neo Otherworld)
+cd platforms/neoforge-1.21.1 && ./gradlew jar tensuraJar
 # Saida: platforms/neoforge-1.21.1/build/libs/companions-neoforge-1.21.1-0.1.0-1.21.1.jar
+# Saida Tensura: platforms/neoforge-1.21.1/build/libs/companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0-1.21.1.jar
 
 # Forge 1.12.2
 cd platforms/forge-1.12.2 && ./gradlew jar
 # Saida: platforms/forge-1.12.2/build/libs/companions-forge-1.12.2-0.1.0-1.12.2.jar
 ```
+
+Todos os pacotes de release compilados tambem estao organizados na pasta centralizada:
+`jars-do-mod-para-cada-versao/`
 
 </details>
 

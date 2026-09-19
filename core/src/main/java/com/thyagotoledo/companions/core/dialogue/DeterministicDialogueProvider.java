@@ -28,6 +28,12 @@ public final class DeterministicDialogueProvider {
     private static final Pattern PATTERN_STATUS_PT = Pattern.compile(".*(status|relat[oó]rio|como\\s*voc[eê]\\s*est[aá]|situa[cç][aã]o).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_STATUS_EN = Pattern.compile(".*(status|report|how\\s*are\\s*you|condition).*", Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern PATTERN_TENSURA_STATUS_PT = Pattern.compile(".*(relat[oó]rio\\s*de\\s*poder|status\\s*de\\s*mag[ií]culas?|mag[ií]culas|tensura\\s*status).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_TENSURA_STATUS_EN = Pattern.compile(".*(power\\s*report|magicule\\s*status|magicules|tensura\\s*status).*", Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern PATTERN_NAME_GIVING_PT = Pattern.compile(".*(nomear|dar\\s*nome|batizar|conceder\\s*nome).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_NAME_GIVING_EN = Pattern.compile(".*(name\\s*companion|give\\s*name|bestow\\s*name|naming).*", Pattern.CASE_INSENSITIVE);
+
     private static final Pattern PATTERN_WOOD_PT = Pattern.compile(".*(pega\\s*madeira|corta\\s*madeira|coleta\\s*madeira).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_WOOD_EN = Pattern.compile(".*(chop\\s*wood|gather\\s*wood|get\\s*wood|cut\\s*trees).*", Pattern.CASE_INSENSITIVE);
 
@@ -73,6 +79,14 @@ public final class DeterministicDialogueProvider {
 
         if (PATTERN_INVENTORY_PT.matcher(trimmed).matches() || PATTERN_INVENTORY_EN.matcher(trimmed).matches()) {
             return new DialogueResponse(locale, localeService.translate(locale, "dialogue.inventory_open"), new Intent(IntentType.OPEN_INVENTORY));
+        }
+
+        if (PATTERN_TENSURA_STATUS_PT.matcher(trimmed).matches() || PATTERN_TENSURA_STATUS_EN.matcher(trimmed).matches()) {
+            return new DialogueResponse(locale, localeService.translate(locale, "tensura.status.report", "Humano", "F", 500, 100, 50), new Intent(IntentType.TENSURA_STATUS));
+        }
+
+        if (PATTERN_NAME_GIVING_PT.matcher(trimmed).matches() || PATTERN_NAME_GIVING_EN.matcher(trimmed).matches()) {
+            return new DialogueResponse(locale, localeService.translate(locale, "tensura.name.evolved", profile != null ? profile.getName() : "Companheiro", "Kijin"), new Intent(IntentType.NAME_GIVING));
         }
 
         if (PATTERN_STATUS_PT.matcher(trimmed).matches() || PATTERN_STATUS_EN.matcher(trimmed).matches()) {

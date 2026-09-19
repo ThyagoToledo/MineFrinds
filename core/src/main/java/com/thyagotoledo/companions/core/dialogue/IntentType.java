@@ -14,6 +14,8 @@ public enum IntentType {
     REMOTE_VIEW,
     OPEN_INVENTORY,
     REPORT_STATUS,
+    TENSURA_STATUS,
+    NAME_GIVING,
     CASUAL_CHAT,
     UNKNOWN_OR_BLOCKED
 }
