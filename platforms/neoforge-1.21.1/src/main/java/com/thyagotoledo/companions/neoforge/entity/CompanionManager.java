@@ -40,6 +40,21 @@ public class CompanionManager {
 
     private static final Map<UUID, NeoForgeCompanionEntity> COMPANIONS_BY_OWNER = new ConcurrentHashMap<>();
     private static final Map<UUID, CompanionServerPlayer> FAKE_PLAYERS_BY_OWNER = new ConcurrentHashMap<>();
+    private static final Map<UUID, net.minecraft.core.BlockPos> DESIGNATED_CHESTS = new ConcurrentHashMap<>();
+
+    public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos) {
+        if (ownerUuid == null) return;
+        if (pos == null) {
+            DESIGNATED_CHESTS.remove(ownerUuid);
+        } else {
+            DESIGNATED_CHESTS.put(ownerUuid, pos.immutable());
+        }
+    }
+
+    public static net.minecraft.core.BlockPos getDesignatedChest(UUID ownerUuid) {
+        if (ownerUuid == null) return null;
+        return DESIGNATED_CHESTS.get(ownerUuid);
+    }
 
     public static NeoForgeCompanionEntity getCompanionForOwner(UUID ownerUuid) {
         if (ownerUuid == null) return null;
@@ -257,7 +272,11 @@ public class CompanionManager {
         // Verifica catalogo de presets de anime
         if (SkinPresetCatalog.hasPreset(skinName)) {
             SkinPresetCatalog.PresetSkin preset = SkinPresetCatalog.getPreset(skinName);
-            profile.getProperties().put("textures", new Property("textures", preset.getBase64Value()));
+            if (preset != null && preset.hasSignature()) {
+                profile.getProperties().put("textures", new Property("textures", preset.getBase64Value(), preset.getSignature()));
+            } else if (preset != null) {
+                profile.getProperties().put("textures", new Property("textures", preset.getBase64Value()));
+            }
             return;
         }
 
@@ -339,5 +358,6 @@ public class CompanionManager {
         }
         FAKE_PLAYERS_BY_OWNER.clear();
         COMPANIONS_BY_OWNER.clear();
+        DESIGNATED_CHESTS.clear();
     }
 }

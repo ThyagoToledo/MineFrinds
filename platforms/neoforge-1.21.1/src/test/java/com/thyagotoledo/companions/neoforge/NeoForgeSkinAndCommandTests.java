@@ -146,20 +146,29 @@ public class NeoForgeSkinAndCommandTests {
                 com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("Rimuru");
         assertNotNull(rimuru);
         assertEquals("Rimuru", rimuru.getName());
-        assertTrue(rimuru.isSlim());
+        assertTrue(rimuru.hasSignature());
         assertNotNull(rimuru.getBase64Value());
         assertFalse(rimuru.getBase64Value().isEmpty());
+
+        com.thyagotoledo.companions.core.skin.SkinPresetCatalog.PresetSkin tanjiro =
+                com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("Tanjiro");
+        assertNotNull(tanjiro);
+        assertTrue(tanjiro.isSlim());
+        assertTrue(tanjiro.hasSignature());
 
         com.thyagotoledo.companions.core.skin.SkinPresetCatalog.PresetSkin goku =
                 com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("goku");
         assertNotNull(goku);
         assertFalse(goku.isSlim());
+        assertTrue(goku.hasSignature());
 
-        // Modos novos WOOD e MINE
+        // Modos novos WOOD, MINE e FARM
         NeoForgeCompanionEntity companion = CompanionManager.spawnCompanion(UUID.randomUUID(), "Operario");
         companion.setMode(CompanionMode.WOOD);
         assertEquals(CompanionMode.WOOD, companion.getMode());
         companion.setMode(CompanionMode.MINE);
         assertEquals(CompanionMode.MINE, companion.getMode());
+        companion.setMode(CompanionMode.FARM);
+        assertEquals(CompanionMode.FARM, companion.getMode());
     }
 }

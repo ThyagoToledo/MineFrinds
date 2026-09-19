@@ -16,9 +16,9 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 95.811 bytes | `430CF2EA847B81E2A76F7138FCF63440E7ED6B08ADB7B696FBD25B6E6EA38230` |
-| `companions-neoforge-1.21.1-0.1.0.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / ServerPlayer Fake, LAN, Abas, Skins e IA | 125.756 bytes | `ED5C2D84AAF06982BF819878E8E95DDC4E190E5AFDC8647FC43B7AB291321FD0` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar` | NeoForge 21.1.244+ | 1.21.1 | Adaptada Tensura / ServerPlayer Fake, LAN, Abas, Skins e IA | 125.798 bytes | `C5FA6EFC031D2F4E661C215615E4C263586D30624561AA6D99DA4229539F04D3` |
+| `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
+| `companions-neoforge-1.21.1-0.1.0.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / ServerPlayer Fake, LAN, Abas, Skins e IA | 151.108 bytes | `9255137EA5D8CD22F149CBD11A38C1CFC2D5417A5E237FC0BF49184C89F1A184` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar` | NeoForge 21.1.244+ | 1.21.1 | Adaptada Tensura / ServerPlayer Fake, LAN, Abas, Skins e IA | 151.150 bytes | `F670E14E9D1A7838E010EE1DA6AB46A97B8CAAA3F2F1834819ADA67F8893D3DF` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 
 ---
@@ -85,14 +85,16 @@ A interface do mod (aberta via tecla `C`, icone `[C]` no inventario ou comando `
 - `/companion spawn [nome]`: Invoca o companheiro no servidor como jogador oficial.
 - `/companion lan [nome]`: Abre o mundo para LAN e convoca o companheiro.
 - `/companion mode <follow|stay|defend>`: Altera o comportamento (Seguir, Ficar aqui, Defender).
-- `/companion action <wood|mine>`: Ordena coleta de madeira ou mineracao de minerios proximos.
-- `/companion inventory`: Abre a mochila/inventario de itens do companheiro.
-- `/companion deposit`: Despeja itens coletados no bau ou barril mais proximo.
+- `/companion action <wood|mine|farm>`: Ordena corte de madeira (com felling em cascata), mineracao de minerios ou plantio/colheita de safras em fazendas.
+- `/companion chest` ou `/companion bau`: Registra o bau mais proximo como deposito e estoque principal do companheiro.
+- `/companion craft <item> [qtd]`: Fabrica itens autonomamente (busca materiais no bau designado e vai coletar na natureza se faltar madeira/pedra).
+- `/companion inventory`: Abre o inventario completo de 54 slots com armaduras (elmo, peitoral, calcas, botas), offhand, mao principal e mochila.
+- `/companion deposit`: Despeja itens coletados no bau designado ou no bau mais proximo.
+- `/companion view`: Alterna visao remota pelos olhos do companheiro (toggle: execute novamente ou agache para sair).
 - `/companion recall`: Chama o companheiro para perto com teleporte seguro.
-- `/companion view`: Visao remota pelos olhos do companheiro (camera).
 - `/companion dismiss`: Dispensa o companheiro do servidor com mensagem de saida.
-- `/skin <nome>` ou `/companion skin <nome>`: Altera a skin em tempo real (ex: `Rimuru`, `Goku`, `Luffy`, `Naruto`, `Kirito`).
-- `/skin reset`: Restaura para a sua propria skin original.
+- `/skin <nome>` ou `/companion skin <nome>`: Altera a skin em tempo real com assinaturas criptograficas oficiais (ex: `Rimuru`, `Goku`, `Luffy`, `Naruto`, `Kirito`, `Zoro`, `Gojo`, `Tanjiro`).
+- `/skin reset`: Restaura para a sua propria skin original de jogador.
 - `/companion help` ou `/help companions`: Envia o guia interativo de ajuda no chat.
 - `/companion gui`: Abre a interface grafica com abas (ou tecla `C`).
 

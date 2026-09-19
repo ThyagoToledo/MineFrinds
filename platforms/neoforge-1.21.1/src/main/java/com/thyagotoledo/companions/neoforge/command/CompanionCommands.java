@@ -1,6 +1,7 @@
 package com.thyagotoledo.companions.neoforge.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.neoforge.client.skin.SkinCacheManager;
@@ -8,6 +9,7 @@ import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.entity.player.CompanionServerPlayer;
 import com.thyagotoledo.companions.neoforge.tensura.TensuraCompanionStats;
+import net.minecraft.core.BlockPos;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
@@ -91,12 +93,27 @@ public class CompanionCommands {
                         .then(Commands.literal("action")
                                 .then(Commands.literal("wood").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WOOD)))
                                 .then(Commands.literal("mine").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.MINE)))
+                                .then(Commands.literal("farm").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.FARM)))
                         )
                         .then(Commands.literal("inventory")
                                 .executes(ctx -> executeInventory(ctx.getSource()))
                         )
                         .then(Commands.literal("deposit")
                                 .executes(ctx -> executeDeposit(ctx.getSource()))
+                        )
+                        .then(Commands.literal("chest")
+                                .executes(ctx -> executeChest(ctx.getSource()))
+                        )
+                        .then(Commands.literal("bau")
+                                .executes(ctx -> executeChest(ctx.getSource()))
+                        )
+                        .then(Commands.literal("craft")
+                                .then(Commands.argument("item", StringArgumentType.string())
+                                        .executes(ctx -> executeCraft(ctx.getSource(), StringArgumentType.getString(ctx, "item"), 1))
+                                        .then(Commands.argument("quantidade", IntegerArgumentType.integer(1, 64))
+                                                .executes(ctx -> executeCraft(ctx.getSource(), StringArgumentType.getString(ctx, "item"), IntegerArgumentType.getInteger(ctx, "quantidade")))
+                                        )
+                                )
                         )
                         .then(Commands.literal("view")
                                 .executes(ctx -> executeView(ctx.getSource()))
@@ -231,6 +248,7 @@ public class CompanionCommands {
             case DEFEND -> "Postura defensiva de guarda";
             case WOOD -> "Coleta de madeira nas proximidades";
             case MINE -> "Mineracao de minerios nas proximidades";
+            case FARM -> "Agricultura e colheita nas plantacoes";
             default -> mode.name();
         };
 
@@ -268,6 +286,47 @@ public class CompanionCommands {
         return 1;
     }
 
+    private static int executeChest(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        BlockPos targetChestPos = null;
+        for (BlockPos p : BlockPos.betweenClosed(player.blockPosition().offset(-4, -2, -4), player.blockPosition().offset(4, 2, 4))) {
+            if (player.serverLevel().getBlockEntity(p) instanceof net.minecraft.world.Container) {
+                targetChestPos = p.immutable();
+                break;
+            }
+        }
+
+        if (targetChestPos != null) {
+            CompanionManager.setDesignatedChest(player.getUUID(), targetChestPos);
+            final BlockPos savedPos = targetChestPos;
+            source.sendSuccess(() -> Component.literal("Bau designado registrado em [" + savedPos.getX() + ", " + savedPos.getY() + ", " + savedPos.getZ() + "]! O companheiro usara este bau para guardar e buscar itens."), true);
+            CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+            if (companion != null) {
+                companion.speakToOwner("Entendido! Registrei este bau como nosso estoque e deposito principal.");
+            }
+            return 1;
+        } else {
+            source.sendFailure(Component.literal("Nenhum bau encontrado por perto (fique a ate 4 blocos de um bau ou barril)."));
+            return 0;
+        }
+    }
+
+    private static int executeCraft(CommandSourceStack source, String item, int quantity) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        companion.executeAutonomousCraft(player, item, quantity);
+        return 1;
+    }
+
     private static int executeView(CommandSourceStack source) {
         ServerPlayer player = source.getPlayer();
         if (player == null) return 0;
@@ -278,8 +337,14 @@ public class CompanionCommands {
             return 0;
         }
 
+        if (player.getCamera() == companion) {
+            player.setCamera(player);
+            source.sendSuccess(() -> Component.literal("Voce retornou para a sua propria visao de camera."), false);
+            return 1;
+        }
+
         player.setCamera(companion);
-        source.sendSuccess(() -> Component.literal("Visualizando pelos olhos de " + companion.getName().getString() + ". Pressione F5 ou Shift para sair."), false);
+        source.sendSuccess(() -> Component.literal("Visualizando pelos olhos de " + companion.getName().getString() + ". Digite /companion view novamente ou agache (Shift) para sair."), false);
         return 1;
     }
 
@@ -415,6 +480,31 @@ public class CompanionCommands {
             return true;
         }
 
+        if (lower.contains("plantar") || lower.contains("colher") || lower.contains("fazenda") || lower.equals("farm") || lower.contains("agricultura")) {
+            companion.setMode(CompanionMode.FARM);
+            companion.speakToOwner("Iniciando trabalho de agricultura! Vou colher safras maduras e replantar sementes.");
+            return true;
+        }
+
+        if (lower.contains("marcar bau") || lower.contains("este e o bau") || lower.contains("salvar bau") || lower.contains("definir bau")) {
+            executeChest(player.createCommandSourceStack());
+            return true;
+        }
+
+        if (lower.startsWith("fabrica ") || lower.startsWith("fabricar ") || lower.startsWith("faz uma ") || lower.startsWith("faz um ") || lower.startsWith("faz ")) {
+            String item = rawText.replaceFirst("(?i)^(fabrica|fabricar|faz uma|faz um|faz)\\s+", "").trim();
+            if (!item.isEmpty()) {
+                companion.executeAutonomousCraft(player, item, 1);
+                return true;
+            }
+        }
+
+        if (lower.contains("sair da camera") || lower.contains("minha visao") || lower.contains("voltar visao")) {
+            player.setCamera(player);
+            companion.speakToOwner("Restaurando visao de camera para o seu jogador.");
+            return true;
+        }
+
         if (lower.contains("vem ca") || lower.contains("venha aqui") || lower.equals("recall")) {
             companion.recallToOwner();
             companion.speakToOwner("Ja cheguei ao seu lado!");
@@ -432,8 +522,13 @@ public class CompanionCommands {
         }
 
         if (lower.contains("visao") || lower.contains("olhar") || lower.contains("camera")) {
-            player.setCamera(companion);
-            companion.speakToOwner("Conectado a visao remota. Pressione F5 ou Shift para sair.");
+            if (player.getCamera() == companion) {
+                player.setCamera(player);
+                companion.speakToOwner("Restaurando visao de camera para o seu jogador.");
+            } else {
+                player.setCamera(companion);
+                companion.speakToOwner("Conectado a visao remota. Digite /companion view novamente ou agache para sair.");
+            }
             return true;
         }
 
@@ -464,15 +559,18 @@ public class CompanionCommands {
         source.sendSuccess(() -> createClickableCommand("/companion spawn [nome]", "Invoca o companheiro como jogador oficial no servidor", "/companion spawn "), false);
         source.sendSuccess(() -> createClickableCommand("/companion lan [nome]", "Abre o mundo para LAN e invoca o companheiro", "/companion lan "), false);
         source.sendSuccess(() -> createClickableCommand("/companion mode <follow|stay|defend>", "Altera o comportamento do companheiro", "/companion mode "), false);
-        source.sendSuccess(() -> createClickableCommand("/companion action <wood|mine>", "Ordena coleta de madeira ou mineracao", "/companion action "), false);
-        source.sendSuccess(() -> createClickableCommand("/companion inventory", "Abre a mochila de itens do companheiro", "/companion inventory"), false);
-        source.sendSuccess(() -> createClickableCommand("/companion deposit", "Guarda itens coletados no bau mais proximo", "/companion deposit"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion action <wood|mine|farm>", "Ordena corte de madeira, mineracao ou colheita/plantio", "/companion action "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion chest", "Define o bau proximo como estoque e deposito principal", "/companion chest"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion craft <item> [qtd]", "Fabrica itens autonomamente (coleta na floresta/mina se faltar)", "/companion craft "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion inventory", "Abre o inventario completo com armaduras e mochila", "/companion inventory"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion deposit", "Guarda itens coletados no bau designado ou proximo", "/companion deposit"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion view", "Alterna visao remota da camera do companheiro", "/companion view"), false);
         source.sendSuccess(() -> createClickableCommand("/companion recall", "Chama o companheiro para perto de voce", "/companion recall"), false);
         source.sendSuccess(() -> createClickableCommand("/companion dismiss", "Dispensa o companheiro do servidor", "/companion dismiss"), false);
         source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Altera a skin em tempo real (ex: Rimuru, Goku, Luffy)", "/skin "), false);
         source.sendSuccess(() -> createClickableCommand("/skin reset", "Restaura para a sua propria skin", "/skin reset"), false);
         source.sendSuccess(() -> Component.literal("Comandos por Chat de Voz:"), false);
-        source.sendSuccess(() -> Component.literal("  Digite 'me segue', 'fica aqui', 'defenda', 'pega madeira', 'minerar', 'guardar' ou 'mochila'."), false);
+        source.sendSuccess(() -> Component.literal("  Digite 'me segue', 'fica aqui', 'defenda', 'pega madeira', 'minerar', 'plantar', 'marcar bau', 'fabrica <item>', 'guardar' ou 'mochila'."), false);
         source.sendSuccess(() -> Component.literal("============================================"), false);
     }
 

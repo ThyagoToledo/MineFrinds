@@ -197,9 +197,20 @@ public class CompanionScreen extends Screen {
                 .tooltip(Tooltip.create(Component.literal("Ordena a busca e mineracao de minerios proximos.")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("Ajuda / Info"), b -> sendOrder("/companion help"))
+        addRenderableWidget(Button.builder(Component.literal("Plantar"), b -> sendOrder("/companion action farm"))
                 .bounds(col2, top + 118, btnW, btnH)
-                .tooltip(Tooltip.create(Component.literal("Exibe comandos e guia no chat.")))
+                .tooltip(Tooltip.create(Component.literal("Ordena a colheita de safras maduras e replantio de sementes.")))
+                .build());
+
+        // Linha 5
+        addRenderableWidget(Button.builder(Component.literal("Marcar Bau"), b -> sendOrder("/companion chest"))
+                .bounds(col1, top + 142, btnW, btnH)
+                .tooltip(Tooltip.create(Component.literal("Registra o bau mais proximo como estoque e deposito do companheiro.")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Ajuda / Info"), b -> sendOrder("/companion help"))
+                .bounds(col2, top + 142, btnW, btnH)
+                .tooltip(Tooltip.create(Component.literal("Exibe comandos e guia completo no chat.")))
                 .build());
 
         // Rodape: Caixa de Chat e Botao Enviar

@@ -7,5 +7,6 @@ public enum CompanionMode {
     WORK,
     WOOD,
     MINE,
+    FARM,
     IDLE
 }
