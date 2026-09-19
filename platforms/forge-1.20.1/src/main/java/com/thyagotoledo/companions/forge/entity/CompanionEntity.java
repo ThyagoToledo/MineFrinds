@@ -44,6 +44,11 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import com.thyagotoledo.companions.core.planner.RecipeCatalog;
+import com.thyagotoledo.companions.core.quest.Quest;
+import com.thyagotoledo.companions.core.quest.QuestPlanner;
+import com.thyagotoledo.companions.core.quest.QuestPlanResult;
+import com.thyagotoledo.companions.forge.service.ForgeQuestService;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.Nullable;
 
@@ -56,6 +61,9 @@ public class CompanionEntity extends TamableAnimal {
     private String preferredLocale = LocaleService.PT_BR;
     private final LocaleService localeService = new LocaleService();
     private final DeterministicDialogueProvider dialogueProvider = new DeterministicDialogueProvider(localeService);
+    private final ForgeQuestService questService = new ForgeQuestService();
+    private final RecipeCatalog recipeCatalog = new RecipeCatalog();
+    private final QuestPlanner questPlanner = new QuestPlanner(questService, recipeCatalog);
     private long lastRecallGameTime = -100L;
     private WorkTask activeWorkTask = null;
 
@@ -135,6 +143,33 @@ public class CompanionEntity extends TamableAnimal {
             String text = this.localeService.translate(this.preferredLocale, key, args);
             player.sendSystemMessage(Component.literal(text));
         }
+    }
+
+    public ForgeQuestService getQuestService() {
+        return this.questService;
+    }
+
+    public QuestPlanner getQuestPlanner() {
+        return this.questPlanner;
+    }
+
+    public RecipeCatalog getRecipeCatalog() {
+        return this.recipeCatalog;
+    }
+
+    public InventorySnapshot createPlayerInventorySnapshot(Player player) {
+        if (player == null) return new InventorySnapshot(new ArrayList<>(), 0);
+        List<ItemSlot> slots = new ArrayList<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (!stack.isEmpty()) {
+                slots.add(new ItemSlot(
+                        ForgeRegistries.ITEMS.getKey(stack.getItem()).toString(),
+                        stack.getCount()
+                ));
+            }
+        }
+        return new InventorySnapshot(slots, player.getInventory().getContainerSize());
     }
 
     @Override
@@ -393,6 +428,43 @@ public class CompanionEntity extends TamableAnimal {
                 setMode(CompanionMode.WORK);
                 setOrderedToSit(false);
                 break;
+            case ASSIST_SELECTED_QUEST:
+                List<Quest> available = this.questService.getAvailableQuests(sender.getUUID());
+                if (available.isEmpty()) {
+                    String msg = localeService.translate(preferredLocale, "quest.not_found");
+                    sender.sendSystemMessage(Component.literal(msg));
+                    return;
+                }
+                Quest targetQuest = available.get(0);
+                QuestPlanResult planResult = this.questPlanner.planQuest(
+                        sender.getUUID(),
+                        targetQuest.getId(),
+                        createPlayerInventorySnapshot(sender),
+                        createInventorySnapshot()
+                );
+                String questResponse;
+                switch (planResult.getStatus()) {
+                    case READY_TO_SUBMIT:
+                        questResponse = localeService.translate(preferredLocale, "quest.ready", targetQuest.getTitle());
+                        break;
+                    case BLOCKED_DEPENDENCY:
+                        questResponse = localeService.translate(preferredLocale, "quest.blocked.dependency", targetQuest.getTitle());
+                        break;
+                    case UNKNOWN_RECIPE_OR_MACHINE:
+                        questResponse = localeService.translate(preferredLocale, "quest.unknown_process");
+                        break;
+                    case MISSING_ITEMS:
+                    default:
+                        StringBuilder missingStr = new StringBuilder();
+                        for (var entry : planResult.getMissingItems().entrySet()) {
+                            missingStr.append(entry.getValue()).append("x ").append(entry.getKey()).append(", ");
+                        }
+                        if (missingStr.length() > 2) missingStr.setLength(missingStr.length() - 2);
+                        questResponse = localeService.translate(preferredLocale, "quest.missing", targetQuest.getTitle(), missingStr.toString());
+                        break;
+                }
+                sender.sendSystemMessage(Component.literal(questResponse));
+                return;
             default:
                 break;
         }

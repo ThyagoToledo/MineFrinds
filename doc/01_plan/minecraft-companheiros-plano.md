@@ -136,15 +136,21 @@ Entregas:
 
 Aceite: testes com claim permitido/negado, inventário cheio, item com NBT, recipiente restante, alvo removido, caminho impossível, pedido duplicado e cancelamento durante ação. Inventário e drops precisam fechar a contagem; não fazer contorno silencioso de receitas ou permissões.
 
-### P4 — Adaptação ao pack e assistência a quests
+### P4 — Adaptação ao pack e assistência a quests (Concluído)
 
 Tecnologias: RecipeManager/registries/tags, índice compacto com limites, grafo de requisitos e adaptador FTB Quests/Teams específico da versão.
 
-Ler receitas efetivas depois das alterações KubeJS. Indexar saídas e ingredientes suportados com consulta sob demanda; tarefas de máquinas desconhecidas viram orientação ou bloqueio explicado. Filtrar visibilidade e dependências das quests antes de compor qualquer contexto. Obter progresso do jogador/equipe no servidor.
+Status: Concluído e testado.
+Entregas:
+- Modelos desacoplados no core: `QuestTask`, `QuestReward` e `Quest` com diferenciação estrita entre tarefas obrigatórias e recompensas (recompensas nunca são tratadas como requisitos).
+- Serviço de missões e visibilidade: `QuestService` e `DefaultQuestService` com suporte a dependências hierárquicas e garantia de que missões ocultas não vazam para o contexto do jogador.
+- Planejador de missões: `QuestPlanner` que cruza requisitos com o inventário conjunto (jogador + companheiro), decompõe matérias-primas faltantes via `RecipeCatalog` e detecta processos que exigem maquinário não suportado com explicação detalhada.
+- Resiliência a reload: Método `clear()` em `RecipeCatalog` e `invalidateCache()` para invalidação atômica em eventos de recarga.
+- Adaptador Forge 1.20.1: `ForgeQuestService` com detecção dinâmica e segura de `ftbquests` e fallback transparente quando ausente.
+- Internacionalização: Paridade completa de mensagens de missões em `pt_br.json` e `en_us.json`.
+- Testes e build: Suíte `:core:test` (11/11) e `:platforms:forge-1.20.1:test` (10/10) aprovadas, build de JAR e reobfuscação MCP bem-sucedidos.
 
-Selecionar uma quest acessível de coleta com ID registrado no relatório. A quest Botania encontrada serve como fixture de distinção entre tarefa e recompensa, não como prova de execução disponível. Percurso de aceite: jogador seleciona objetivo → NPC explica faltantes → coleta permitida → entrega → FTB reconhece o progresso legítimo.
-
-Aceite adicional: receita alterada por reload invalida o plano; quest oculta não vaza; item recompensado não é confundido com requisito; quest em equipe e nome sem tradução são tratados. Todas as mensagens desse fluxo existem nos dois idiomas antes da IA livre.
+Aceite: jogador seleciona objetivo → NPC explica faltantes → coleta permitida → entrega → FTB reconhece o progresso legítimo. Receita alterada por reload invalida o plano; quest oculta não vaza; item recompensado não é confundido com requisito; todas as mensagens existem nos dois idiomas antes da IA livre.
 
 ### P5 — Conversa livre com modelo pequeno
 

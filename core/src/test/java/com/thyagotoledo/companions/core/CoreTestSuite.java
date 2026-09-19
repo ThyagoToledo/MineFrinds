@@ -137,7 +137,9 @@ public class CoreTestSuite {
                 "dialogue.recall_ack", "dialogue.recall_blocked_combat", "dialogue.recall_blocked_dimension",
                 "dialogue.recall_blocked_hazard", "dialogue.remote_view_start", "dialogue.remote_view_stop",
                 "dialogue.inventory_open", "dialogue.status_report", "dialogue.wood_ack",
-                "dialogue.deposit_ack", "dialogue.quest_ack", "dialogue.unknown_ack", "task.blocked.claim"
+                "dialogue.deposit_ack", "dialogue.quest_ack", "dialogue.unknown_ack", "task.blocked.claim",
+                "quest.blocked.dependency", "quest.ready", "quest.missing", "quest.raw_materials",
+                "quest.unknown_process", "quest.not_found"
         };
 
         for (String key : requiredKeys) {
@@ -194,7 +196,7 @@ public class CoreTestSuite {
     }
 
     @Test
-    public void testCraftingPlanner() {
+    public void testCraftingPlannerAndReload() {
         RecipeCatalog catalog = new RecipeCatalog();
         catalog.registerRecipe(new RecipeRequirement(
                 "minecraft:oak_planks",
@@ -210,5 +212,107 @@ public class CoreTestSuite {
         ItemSlot logSlot = new ItemSlot("minecraft:oak_log", 2);
         InventorySnapshot filledInv = new InventorySnapshot(Collections.singletonList(logSlot), 27);
         assertTrue(planner.canCraft("minecraft:oak_planks", 4, filledInv));
+
+        // Teste de invalidacao no reload
+        catalog.clear();
+        assertNull(catalog.getRecipe("minecraft:oak_planks"));
+        assertFalse(planner.canCraft("minecraft:oak_planks", 4, filledInv));
+    }
+
+    @Test
+    public void testQuestVisibilityAndDependencies() {
+        com.thyagotoledo.companions.core.quest.DefaultQuestService questService =
+                new com.thyagotoledo.companions.core.quest.DefaultQuestService();
+        UUID playerUuid = UUID.randomUUID();
+
+        // Quest 1 (raiz)
+        com.thyagotoledo.companions.core.quest.Quest q1 = new com.thyagotoledo.companions.core.quest.Quest(
+                "q1", "Primeiros Passos", "Faca uma bancada", "intro",
+                Collections.emptyList(),
+                Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestTask("t1", com.thyagotoledo.companions.core.quest.QuestTask.Type.ITEM, "minecraft:crafting_table", 1)),
+                Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestReward("r1", "meadow:cheese_sandwich", 4)),
+                false
+        );
+
+        // Quest 2 (depende de q1)
+        com.thyagotoledo.companions.core.quest.Quest q2 = new com.thyagotoledo.companions.core.quest.Quest(
+                "q2", "Mineracao", "Faca uma picareta", "intro",
+                Collections.singletonList("q1"),
+                Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestTask("t2", com.thyagotoledo.companions.core.quest.QuestTask.Type.ITEM, "minecraft:wooden_pickaxe", 1)),
+                Collections.emptyList(),
+                false
+        );
+
+        // Quest 3 (oculta)
+        com.thyagotoledo.companions.core.quest.Quest qHidden = new com.thyagotoledo.companions.core.quest.Quest(
+                "q_secret", "Segredo", "Missao oculta", "secret",
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                true
+        );
+
+        questService.registerQuest(q1);
+        questService.registerQuest(q2);
+        questService.registerQuest(qHidden);
+
+        // qHidden nao deve vazar
+        assertNull(questService.getQuest(playerUuid, "q_secret"));
+        List<com.thyagotoledo.companions.core.quest.Quest> available = questService.getAvailableQuests(playerUuid);
+        assertEquals(1, available.size());
+        assertEquals("q1", available.get(0).getId());
+
+        // q2 esta bloqueada por q1
+        assertFalse(questService.areDependenciesMet(playerUuid, "q2"));
+
+        // Conclui q1
+        questService.setQuestCompleted(playerUuid, "q1");
+        assertTrue(questService.isQuestCompleted(playerUuid, "q1"));
+        assertTrue(questService.areDependenciesMet(playerUuid, "q2"));
+
+        available = questService.getAvailableQuests(playerUuid);
+        assertEquals(1, available.size());
+        assertEquals("q2", available.get(0).getId());
+    }
+
+    @Test
+    public void testQuestPlannerAndRewardDistinction() {
+        com.thyagotoledo.companions.core.quest.DefaultQuestService questService =
+                new com.thyagotoledo.companions.core.quest.DefaultQuestService();
+        RecipeCatalog catalog = new RecipeCatalog();
+        catalog.registerRecipe(new RecipeRequirement(
+                "minecraft:crafting_table",
+                new ItemSlot("minecraft:crafting_table", 1),
+                Collections.singletonList(new ItemSlot("minecraft:oak_planks", 4))
+        ));
+
+        com.thyagotoledo.companions.core.quest.QuestPlanner planner =
+                new com.thyagotoledo.companions.core.quest.QuestPlanner(questService, catalog);
+
+        UUID playerUuid = UUID.randomUUID();
+        com.thyagotoledo.companions.core.quest.Quest q = new com.thyagotoledo.companions.core.quest.Quest(
+                "botania_fixture", "Inicio Botania", "Obter bancada", "botania",
+                Collections.emptyList(),
+                Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestTask("t1", com.thyagotoledo.companions.core.quest.QuestTask.Type.ITEM, "minecraft:crafting_table", 1)),
+                Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestReward("r1", "meadow:cheese_sandwich", 4)),
+                false
+        );
+        questService.registerQuest(q);
+
+        // Inventario do jogador contem a recompensa ("meadow:cheese_sandwich"), mas NAO o requisito ("minecraft:crafting_table")
+        InventorySnapshot playerInv = new InventorySnapshot(Collections.singletonList(new ItemSlot("meadow:cheese_sandwich", 4)), 27);
+        InventorySnapshot companionInv = new InventorySnapshot(Collections.emptyList(), 27);
+
+        // A recompensa nao pode satisfazer a task e nunca pode ser marcada como faltante
+        com.thyagotoledo.companions.core.quest.QuestPlanResult result = planner.planQuest(playerUuid, "botania_fixture", playerInv, companionInv);
+        assertEquals(com.thyagotoledo.companions.core.quest.QuestPlanResult.Status.MISSING_ITEMS, result.getStatus());
+        assertTrue(result.getMissingItems().containsKey("minecraft:crafting_table"));
+        assertFalse(result.getMissingItems().containsKey("meadow:cheese_sandwich"));
+        assertTrue(result.getRawMaterialsNeeded().containsKey("minecraft:oak_planks"));
+
+        // Quando o jogador possui o item da quest
+        InventorySnapshot readyInv = new InventorySnapshot(Collections.singletonList(new ItemSlot("minecraft:crafting_table", 1)), 27);
+        com.thyagotoledo.companions.core.quest.QuestPlanResult readyResult = planner.planQuest(playerUuid, "botania_fixture", readyInv, companionInv);
+        assertEquals(com.thyagotoledo.companions.core.quest.QuestPlanResult.Status.READY_TO_SUBMIT, readyResult.getStatus());
     }
 }

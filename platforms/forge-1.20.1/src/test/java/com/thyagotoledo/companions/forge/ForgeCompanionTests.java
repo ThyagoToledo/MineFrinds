@@ -192,4 +192,58 @@ public class ForgeCompanionTests {
         assertTrue(enClaim.contains("FTB Chunks"));
         assertTrue(enClaim.contains("protected"));
     }
+
+    @Test
+    @DisplayName("Validar servico ForgeQuestService, fallback gracioso e contratos da Etapa P4")
+    void testP4ForgeQuestServiceFallbackAndContracts() {
+        com.thyagotoledo.companions.forge.service.ForgeQuestService questService =
+                new com.thyagotoledo.companions.forge.service.ForgeQuestService();
+        assertNotNull(questService);
+
+        java.util.UUID testPlayer = java.util.UUID.randomUUID();
+
+        // Sem quests registradas, lista vazia
+        assertTrue(questService.getAvailableQuests(testPlayer).isEmpty());
+
+        // Cadastro no fallback service
+        com.thyagotoledo.companions.core.quest.Quest sampleQuest = new com.thyagotoledo.companions.core.quest.Quest(
+                "quest_welcome",
+                "Boas-vindas",
+                "Primeira missao do modpack",
+                "welcome",
+                java.util.Collections.emptyList(),
+                java.util.Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestTask("t_table", com.thyagotoledo.companions.core.quest.QuestTask.Type.ITEM, "minecraft:crafting_table", 1)),
+                java.util.Collections.singletonList(new com.thyagotoledo.companions.core.quest.QuestReward("r_apple", "minecraft:apple", 5)),
+                false
+        );
+        questService.getFallbackService().registerQuest(sampleQuest);
+
+        // Acesso via interface ForgeQuestService
+        com.thyagotoledo.companions.core.quest.Quest retrieved = questService.getQuest(testPlayer, "quest_welcome");
+        assertNotNull(retrieved);
+        assertEquals("Boas-vindas", retrieved.getTitle());
+        assertEquals(1, retrieved.getTasks().size());
+        assertEquals(1, retrieved.getRewards().size());
+
+        // Invalidacao de cache nao deve lancar excecao
+        assertDoesNotThrow(questService::invalidateCache);
+    }
+
+    @Test
+    @DisplayName("Validar mensagens de assistencia a quests no sistema de internacionalizacao")
+    void testP4QuestLocalization() {
+        LocaleService service = new LocaleService();
+
+        String ptReady = service.translate("pt_br", "quest.ready", "Primeiros Passos");
+        String enReady = service.translate("en_us", "quest.ready", "First Steps");
+        assertTrue(ptReady.contains("Primeiros Passos"));
+        assertTrue(ptReady.contains("prontos para entrega"));
+        assertTrue(enReady.contains("First Steps"));
+        assertTrue(enReady.contains("ready to submit"));
+
+        String ptBlocked = service.translate("pt_br", "quest.blocked.dependency", "Capitulo 2");
+        String enBlocked = service.translate("en_us", "quest.blocked.dependency", "Chapter 2");
+        assertTrue(ptBlocked.contains("dependencias anteriores"));
+        assertTrue(enBlocked.contains("prerequisite quests"));
+    }
 }

@@ -15,5 +15,11 @@
   "dialogue.deposit_ack": "Vou guardar os itens coletados no bau.",
   "dialogue.quest_ack": "Deixe-me verificar o que falta para a nossa missao.",
   "dialogue.unknown_ack": "Nao entendi muito bem. Pode repetir?",
-  "task.blocked.claim": "Nao posso agir aqui: esta area esta protegida por {0}."
+  "task.blocked.claim": "Nao posso agir aqui: esta area esta protegida por {0}.",
+  "quest.blocked.dependency": "A missao {0} possui dependencias anteriores que precisam ser concluidas primeiro.",
+  "quest.ready": "Todos os itens para a missao {0} estao prontos para entrega.",
+  "quest.missing": "Para a missao {0}, ainda faltam: {1}.",
+  "quest.raw_materials": "Materiais brutos sugeridos para coleta: {0}.",
+  "quest.unknown_process": "Esta missao exige maquinario ou processo especial nao disponivel no catalogo comum.",
+  "quest.not_found": "Nenhuma missao ativa correspondente foi encontrada."
 }

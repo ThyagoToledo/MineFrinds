@@ -15,5 +15,11 @@
   "dialogue.deposit_ack": "I will store the collected items in the chest.",
   "dialogue.quest_ack": "Let me inspect what is needed for our quest.",
   "dialogue.unknown_ack": "I did not quite catch that. Can you repeat?",
-  "task.blocked.claim": "I cannot act here: this area is protected by {0}."
+  "task.blocked.claim": "I cannot act here: this area is protected by {0}.",
+  "quest.blocked.dependency": "The quest {0} has prerequisite quests that must be completed first.",
+  "quest.ready": "All required items for quest {0} are ready to submit.",
+  "quest.missing": "For quest {0}, you still need: {1}.",
+  "quest.raw_materials": "Suggested raw materials to gather: {0}.",
+  "quest.unknown_process": "This quest requires specialized machinery or processes not in the standard catalog.",
+  "quest.not_found": "No matching active quest was found."
 }
