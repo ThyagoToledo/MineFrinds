@@ -182,11 +182,19 @@ Entregas e Métricas:
 
 Aceite: pico adicional observado ≤2.000 MB no perfil aprovado, sem crescimento contínuo após estabilização, sem duplicação de itens e sem ação negada por claim sendo executada. Meta preliminar: delta p95 de MSPT ≤5 ms com quatro NPCs no cenário controlado. Com oito, o sistema pode reduzir frequência de trabalho e recusar novas tarefas; ainda deve respeitar o teto. Não anunciar 20 TPS absolutos quando o baseline do pack não os sustenta.
 
-### P7 — 1.21.1 em dois loaders
+### P7 — 1.21.1 em dois loaders (Concluído)
 
 Primeiro NeoForge 21.1.248 por atender Tempest/Tensura; depois Forge 1.21.1 solicitado, em instância limpa. Não intercambiar JARs.
 
-Tecnologias: Java 21, template/MDK por loader, adaptadores de payloads, inventário/componentes, receitas e FTB específicos. Portar comportamento testado e reutilizar os contratos, sem levar classes do Forge 1.20.1 para o core. Validar OPAC/FTB Chunks quando presentes, compondo proteções.
+Status: Concluído e testado.
+Entregas:
+- Plataforma NeoForge 1.21.1 (`platforms/neoforge-1.21.1`): configurada em Java 21 com toolchain e Gradle composite build consumindo o módulo `:core`.
+- Adaptadores de rede `CustomPacketPayload`: `NeoForgeCompanionPayloads` implementando command e feedback payloads conforme o novo padrão de rede 1.21.1.
+- Proteção de claims composta (`NeoForgePermissionService`): suporte a áreas restritas de FTB Chunks NeoForge e claims de facção do Tensura OPAC.
+- Serviço de quests (`NeoForgeQuestService`): suporte ao FTB Quests NeoForge com fallback em memória e invalidação de cache em `/reload`.
+- Entidade companheira (`NeoForgeCompanionEntity`): integração completa com `HybridDialogueProvider`, `ConversationMemory` e bounded tick execution.
+- Suíte de testes e build: `NeoForgeCompanionTests` (5/5 testes) aprovada; build de JAR `companions-neoforge-1.21.1-0.1.0-1.21.1.jar` concluído.
+- Relatório de Port: Publicado em `doc/03_context/minecraft-companheiros-p7-relatorio-port-1211.md`.
 
 Aceite: sequência P2–P5 nos alvos, servidor dedicado e mesma medição de P6. Integrações profundas Tensura, Curios e MineColonies recebem testes próprios e não são inferidas do fato de o NPC aceitar um item. Se uma integração só existir no NeoForge, declarar a diferença de capacidade no Forge.
 

@@ -1,0 +1,26 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="MIT"
+
+[[mods]]
+modId="companions"
+version="0.1.0-1.21.1"
+displayName="Companions"
+authors="ThyagoToledo"
+description='''
+Companheiro inteligente com comandos bilingues, protecao de terreno compativel com FTB Chunks e OPAC, e orquestrador de IA local.
+'''
+
+[[dependencies.companions]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.248,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.companions]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.22)"
+    ordering="NONE"
+    side="BOTH"
