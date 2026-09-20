@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Skin Rimuru Demon Lord, Visao Remota Bifurcada, Combate Prioritario e Mineracao Cone FOV | 245.697 bytes | `F81D7783749FF14DAE60A4FF479E24CA871E706C23E1C767FF0CC54BB430AC90` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com adaptacoes completas | 245.741 bytes | `A7261351752FCCCB8A56213A5E8ADBE7BAA564CCD79F61FB827AB5BA1293FB2C` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Arqueria com Arco e Flecha, Desintegracao de Copa (TreeCapitator), Quebra de Folhas Obstrutoras, Mineracao Continua em Escada e Persistencia de Modos com Toggle | 247.297 bytes | `AB0B33AEA616836E8F22DC2F9CBC3C6AB7E71B2F9F979C2BFB5F33CDEDC8975A` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com arqueria, mineracao continua e integracao Tensura completa | 247.340 bytes | `654ED33C840665D1ECA59760AC327E25B6A832E788F81B41CAF2833A2A351133` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 

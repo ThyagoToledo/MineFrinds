@@ -246,6 +246,13 @@ public class CompanionCommands {
             return 0;
         }
 
+        if (companion.getMode() == mode && mode != CompanionMode.FOLLOW) {
+            companion.setMode(CompanionMode.FOLLOW);
+            source.sendSuccess(() -> Component.literal("Modo desativado. Voltando a te seguir."), true);
+            companion.speakToOwner("Modo desativado. Voltando a te seguir.");
+            return 1;
+        }
+
         companion.setMode(mode);
         String desc = switch (mode) {
             case FOLLOW -> "Seguir o jogador";

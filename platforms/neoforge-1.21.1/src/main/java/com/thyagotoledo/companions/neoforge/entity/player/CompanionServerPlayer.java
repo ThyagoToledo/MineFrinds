@@ -32,6 +32,7 @@ import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.inventory.ChestMenu;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.AxeItem;
+import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.HoeItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -76,6 +77,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private float remoteBreakProgress;
     private long nextRemoteUseTick;
     private LivingEntity combatTarget;
+    private int bowChargeTicks = 0;
     private boolean autonomous;
     private long nextAutonomyTick;
     private int healCooldown = 0;
@@ -283,8 +285,9 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (stack.isEmpty() || stack.getCount() < stack.getMaxStackSize()) { capacity = true; break; }
             }
             if (!capacity) {
-                setMode(CompanionMode.FOLLOW);
-                speakToOwner("Mochila cheia; trabalho pausado / Bag full; work paused.");
+                if (tickCount % 200 == 0) {
+                    speakToOwner("Mochila cheia! Por favor recolha meus itens ou defina um bau com /companion chest.");
+                }
                 return;
             }
             if (targetWorkPos != null && targetWorkPos.equals(observedWorkTarget)
@@ -292,13 +295,8 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (++stalledWorkTicks >= 80) {
                     targetWorkPos = null;
                     stalledWorkTicks = 0;
-                    nextWorkScanTick = this.tickCount + 10;
-                    if (++consecutiveStalls >= 3) {
-                        consecutiveStalls = 0;
-                        setMode(CompanionMode.FOLLOW);
-                        speakToOwner("Recurso inacessivel. Voltando a te seguir!");
-                        return;
-                    }
+                    nextWorkScanTick = this.tickCount + 15;
+                    consecutiveStalls = 0;
                 }
             } else {
                 stalledWorkTicks = 0;
@@ -550,8 +548,9 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void finishWork() {
-        boolean resume = autonomous;
-        setMode(resume ? CompanionMode.WORK : CompanionMode.FOLLOW);
+        if (autonomous) {
+            setMode(CompanionMode.WORK);
+        }
     }
 
     private void handleAutonomousMode(ServerPlayer owner) {
@@ -674,13 +673,17 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (combatTarget != null && (!combatTarget.isAlive() || combatTarget.level() != level()
                 || (combatTarget.distanceToSqr(owner) > 324 && combatTarget.distanceToSqr(this) > 324)
                 || combatTarget.isAlliedTo(owner) || combatTarget.isAlliedTo(this))) {
+            if (isUsingItem() && getMainHandItem().getItem() instanceof BowItem) {
+                stopUsingItem();
+            }
             combatTarget = null;
+            bowChargeTicks = 0;
             nextPathTick = 0;
             smartEquipTools();
         }
         if (combatTarget == null && tickCount % 5 == 0) {
             double closest = Double.MAX_VALUE;
-            AABB searchBox = owner.getBoundingBox().minmax(this.getBoundingBox()).inflate(12, 6, 12);
+            AABB searchBox = owner.getBoundingBox().minmax(this.getBoundingBox()).inflate(16, 8, 16);
             for (LivingEntity entity : level().getEntitiesOfClass(LivingEntity.class, searchBox)) {
                 boolean hostile = entity instanceof net.minecraft.world.entity.monster.Enemy
                         || entity.getType().getCategory() == net.minecraft.world.entity.MobCategory.MONSTER
@@ -688,16 +691,72 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (!hostile || !entity.isAlive() || entity.isAlliedTo(owner) || entity.isAlliedTo(this)) continue;
                 if (entity instanceof net.minecraft.world.entity.NeutralMob neutral
                         && !neutral.isAngryAt(owner) && !neutral.isAngryAt(this)) continue;
-                if (!hasLineOfSight(entity) || (distanceToSqr(entity) > 324 && entity.distanceToSqr(owner) > 324)) continue;
-                double score = Math.min(entity.distanceToSqr(owner), entity.distanceToSqr(this));
+
+                double dMeSq = entity.distanceToSqr(this);
+                double dOwnerSq = entity.distanceToSqr(owner);
+                boolean closeThreat = dMeSq <= 4.0 || dOwnerSq <= 4.0; // Raio de seguranca de 2 blocos
+
+                Vec3 toEntity = entity.getEyePosition().subtract(this.getEyePosition());
+                double distToEnt = toEntity.length();
+                boolean inFov = false;
+                if (distToEnt > 1.0e-3) {
+                    Vec3 dir = toEntity.scale(1.0 / distToEnt);
+                    inFov = dir.dot(this.getLookAngle()) > 0.1; // Campo de visao frontal (~168 graus)
+                }
+
+                // Alvo valido: perigo imediato (<= 2 blocos) OU no campo de visao com visada desimpedida
+                if (!closeThreat && (!inFov || !hasLineOfSight(entity))) continue;
+                if (!closeThreat && (dMeSq > 324 && dOwnerSq > 324)) continue;
+
+                double score = Math.min(dOwnerSq, dMeSq);
                 if (score < closest) { closest = score; combatTarget = entity; }
             }
         }
-        if (combatTarget == null) return false;
-        if (isUsingItem()) stopUsingItem();
+        if (combatTarget == null) {
+            if (isUsingItem() && getMainHandItem().getItem() instanceof BowItem) {
+                stopUsingItem();
+                bowChargeTicks = 0;
+            }
+            return false;
+        }
+
+        double distSq = distanceToSqr(combatTarget);
+        int bowSlot = findBowInInventory();
+        boolean hasAmmo = hasArrowsOrCreative();
+
+        // Modo Arqueria: se tiver arco e flechas no inventario e o monstro estiver a distancia (> 4 blocos)
+        if (bowSlot >= 0 && hasAmmo && distSq > 16.0) {
+            if (getInventory().selected != bowSlot) {
+                if (isUsingItem()) stopUsingItem();
+                swapToHand(bowSlot);
+            }
+
+            Vec3 targetEye = combatTarget.getEyePosition();
+            double horizDist = Math.sqrt(Math.pow(targetEye.x - getX(), 2) + Math.pow(targetEye.z - getZ(), 2));
+            double pitchCompensation = horizDist * 0.05; // Ajuste balistico para gravidade do projétil
+            lookAtPosition(targetEye.add(0, pitchCompensation, 0));
+
+            if (!isUsingItem()) {
+                startUsingItem(InteractionHand.MAIN_HAND);
+                bowChargeTicks = 0;
+            }
+            bowChargeTicks++;
+            if (bowChargeTicks >= 20) {
+                releaseUsingItem();
+                bowChargeTicks = 0;
+            }
+            setDeltaMovement(0, getDeltaMovement().y, 0);
+            return true;
+        }
+
+        // Modo Corpo a Corpo: para curta distancia (<= 4 blocos) ou sem arco/flechas
+        if (isUsingItem() && getMainHandItem().getItem() instanceof BowItem) {
+            stopUsingItem();
+            bowChargeTicks = 0;
+        }
         equipBestWeapon();
         lookAtEntity(combatTarget);
-        if (distanceToSqr(combatTarget) <= 6.25 && hasLineOfSight(combatTarget)) {
+        if (distSq <= 6.25 && hasLineOfSight(combatTarget)) {
             setDeltaMovement(0, getDeltaMovement().y, 0);
             if (getAttackStrengthScale(0.5f) >= 1.0f) {
                 attack(combatTarget);
@@ -708,13 +767,34 @@ public class CompanionServerPlayer extends ServerPlayer {
         return true;
     }
 
+    private int findBowInInventory() {
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.getItem() instanceof BowItem) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean hasArrowsOrCreative() {
+        if (isCreative()) return true;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(Items.ARROW)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void handleDefendMode(ServerPlayer owner) {
         handleFollowMode(owner);
     }
 
     /**
-     * Coleta de madeira com corte em cascata do tronco (Connected Tree Felling).
-     * Derruba a arvore inteira de baixo para cima, evitando travamentos olhando para cima.
+     * Coleta de madeira com corte em cascata do tronco e desintegracao da copa (TreeCapitator).
+     * Quebra folhas obstrutoras de visada e derruba a arvore inteira de baixo para cima com drops naturais.
      */
     private void handleWoodMode(ServerPlayer owner) {
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
@@ -724,15 +804,36 @@ public class CompanionServerPlayer extends ServerPlayer {
             workBreakTicks = 0;
             if (targetWorkPos == null) {
                 checkPendingCraftFulfillment(owner);
-                finishWork();
-                speakToOwner("Nao achei mais madeira alcancavel (" + harvestedCount + " blocos). Voltando a te seguir!");
-                harvestedCount = 0;
+                nextWorkScanTick = this.tickCount + 40L;
+                if (this.tickCount % 200 == 0) {
+                    speakToOwner("Procurando mais arvores por perto... / Looking for more trees nearby...");
+                }
                 return;
             }
         }
 
         Vec3 targetCenter = new Vec3(targetWorkPos.getX() + 0.5, targetWorkPos.getY() + 0.5, targetWorkPos.getZ() + 0.5);
         lookAtPosition(targetCenter);
+
+        // Se houver folhas obstruindo a linha de visada ate o tronco alvo, quebra a folha impeditiva
+        Vec3 eyePos = this.getEyePosition();
+        var rayHit = this.level().clip(new net.minecraft.world.level.ClipContext(
+                eyePos, targetCenter,
+                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Fluid.NONE,
+                this
+        ));
+        if (rayHit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+            BlockPos hitPos = rayHit.getBlockPos();
+            if (!hitPos.equals(targetWorkPos) && isLeafBlock(this.level().getBlockState(hitPos))) {
+                if (canUsePlayerBreak(hitPos)) {
+                    lookAtPosition(hitPos.getCenter());
+                    this.swing(InteractionHand.MAIN_HAND, true);
+                    this.level().destroyBlock(hitPos, true, this);
+                    requestDropCollection(hitPos);
+                }
+            }
+        }
 
         Vec3 diff = targetCenter.subtract(this.position());
         double dXZ = Math.hypot(diff.x, diff.z);
@@ -756,19 +857,19 @@ public class CompanionServerPlayer extends ServerPlayer {
                     speakToOwner("Nao tenho permissao para quebrar madeira nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    finishWork();
                     return;
                 }
 
                 // Destroi o bloco base
+                int maxY = targetWorkPos.getY();
                 if (this.gameMode.destroyBlock(targetWorkPos)) {
                     requestDropCollection(targetWorkPos);
                     harvestedCount++;
                 }
 
-                // Cascata: derruba troncos conectados verticalmente para cima ate 16 blocos
+                // Cascata: derruba troncos conectados verticalmente para cima ate 24 blocos
                 BlockPos currentAbove = targetWorkPos.above();
-                for (int i = 0; i < 16; i++) {
+                for (int i = 0; i < 24; i++) {
                     BlockState stateAbove = this.level().getBlockState(currentAbove);
                     if (!stateAbove.isAir() && (stateAbove.is(BlockTags.LOGS) || stateAbove.getBlock().getDescriptionId().contains("log"))) {
                         if (!canUsePlayerBreak(currentAbove)) {
@@ -777,12 +878,16 @@ public class CompanionServerPlayer extends ServerPlayer {
                         if (this.gameMode.destroyBlock(currentAbove)) {
                             requestDropCollection(currentAbove);
                             harvestedCount++;
+                            maxY = currentAbove.getY();
                         } else break;
                         currentAbove = currentAbove.above();
                     } else {
                         break;
                     }
                 }
+
+                // Remove as folhas ao redor da copa da arvore derrubada com drops naturais (TreeCapitator / Timber)
+                clearTreeLeaves(targetWorkPos, maxY);
 
                 targetWorkPos = null;
                 workBreakTicks = 0;
@@ -791,14 +896,31 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (checkPendingCraftFulfillment(owner)) {
                     return;
                 }
-
-                if (harvestedCount >= 16) {
-                    finishWork();
-                    speakToOwner("Terminei o corte; recolhendo os drops / Cutting finished; collecting drops.");
-                    harvestedCount = 0;
-                }
             }
         }
+    }
+
+    private void clearTreeLeaves(BlockPos basePos, int maxY) {
+        if (basePos == null) return;
+        int minY = Math.max(this.level().getMinBuildHeight(), basePos.getY());
+        int topY = Math.min(this.level().getMaxBuildHeight(), maxY + 4);
+        int radius = 5;
+
+        for (BlockPos pos : BlockPos.betweenClosed(
+                basePos.offset(-radius, minY - basePos.getY(), -radius),
+                basePos.offset(radius, topY - basePos.getY(), radius))) {
+            if (!this.level().hasChunkAt(pos)) continue;
+            BlockState state = this.level().getBlockState(pos);
+            if (isLeafBlock(state) && canUsePlayerBreak(pos)) {
+                this.level().destroyBlock(pos, true, this);
+            }
+        }
+        requestDropCollection(new BlockPos(basePos.getX(), (minY + topY) / 2, basePos.getZ()));
+    }
+
+    private boolean isLeafBlock(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        return state.is(BlockTags.LEAVES) || state.getBlock().getDescriptionId().contains("leaves");
     }
 
     private void handleMineMode(ServerPlayer owner) {
@@ -808,9 +930,10 @@ public class CompanionServerPlayer extends ServerPlayer {
                     && level().getBlockState(stairDestination.above()).isAir()
                     && level().getBlockState(stairDestination.above(2)).isAir()) {
                 moveToward(Vec3.atBottomCenterOf(stairDestination), 0.18);
-                if (++stairApproachTicks >= 100) {
-                    setMode(CompanionMode.FOLLOW);
-                    speakToOwner("Descida bloqueada; trabalho pausado / Descent blocked; work paused.");
+                if (++stairApproachTicks >= 80) {
+                    miningDirection = miningDirection.getClockWise();
+                    stairDestination = null;
+                    stairApproachTicks = 0;
                     return;
                 }
                 if (position().distanceToSqr(Vec3.atBottomCenterOf(stairDestination)) < 0.5) {
@@ -838,9 +961,12 @@ public class CompanionServerPlayer extends ServerPlayer {
             workBreakTicks = 0;
             if (targetWorkPos == null) {
                 checkPendingCraftFulfillment(owner);
-                finishWork();
-                speakToOwner("Nao encontrei mais minerios ou pedras expostas por perto. Voltando a te seguir!");
-                harvestedCount = 0;
+                miningDirection = miningDirection.getClockWise();
+                perceptionTicks = 0;
+                nextWorkScanTick = this.tickCount + 20L;
+                if (this.tickCount % 200 == 0) {
+                    speakToOwner("Procurando novos veios de mineracao... / Searching for new mining veins...");
+                }
                 return;
             }
         }
@@ -866,8 +992,11 @@ public class CompanionServerPlayer extends ServerPlayer {
             BlockState miningState = this.level().getBlockState(targetWorkPos);
             equipForBlock(miningState);
             if (!this.hasCorrectToolForDrops(miningState)) {
-                finishWork();
-                speakToOwner("Preciso de uma picareta adequada / I need a suitable pickaxe.");
+                if (tickCount % 100 == 0) {
+                    speakToOwner("Preciso de uma picareta adequada / I need a suitable pickaxe.");
+                }
+                targetWorkPos = null;
+                workBreakTicks = 0;
                 return;
             }
             if (workBreakTicks == 1) miningProgress = 0;
@@ -878,7 +1007,6 @@ public class CompanionServerPlayer extends ServerPlayer {
                     speakToOwner("Nao tenho permissao para minerar nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    finishWork();
                     return;
                 }
 
@@ -891,12 +1019,6 @@ public class CompanionServerPlayer extends ServerPlayer {
 
                 if (checkPendingCraftFulfillment(owner)) {
                     return;
-                }
-
-                if (harvestedCount >= 16) {
-                    finishWork();
-                    speakToOwner("Terminei esta etapa de mineracao; recolhendo drops / Mining batch finished; collecting drops.");
-                    harvestedCount = 0;
                 }
             }
         }
@@ -912,8 +1034,10 @@ public class CompanionServerPlayer extends ServerPlayer {
             targetWorkPos = findFarmTarget();
             workBreakTicks = 0;
             if (targetWorkPos == null) {
-                finishWork();
-                speakToOwner("Trabalho na fazenda concluido! Todas as safras maduras foram colhidas e replantadas.");
+                nextWorkScanTick = this.tickCount + 40L;
+                if (this.tickCount % 200 == 0) {
+                    speakToOwner("Aguardando crescimento das safras na plantacao... / Waiting for crops to grow...");
+                }
                 return;
             }
         }
@@ -944,7 +1068,6 @@ public class CompanionServerPlayer extends ServerPlayer {
                         speakToOwner("Nao tenho permissao para colher safras nesta area protegida!");
                         targetWorkPos = null;
                         workBreakTicks = 0;
-                        finishWork();
                         return;
                     }
                     this.level().destroyBlock(targetWorkPos, true, this);
@@ -960,7 +1083,6 @@ public class CompanionServerPlayer extends ServerPlayer {
                     speakToOwner("Nao tenho permissao para plantar sementes nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    finishWork();
                     return;
                 }
                 ItemStack seedStack = findSeedsInInventory();
@@ -1100,22 +1222,31 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private BlockPos staircaseTarget() {
-        if (stairSteps >= 6) return null;
         if (stairDestination == null) stairDestination = blockPosition().relative(miningDirection).below();
         BlockPos floor = stairDestination.below();
         if (!level().hasChunkAt(floor) || !level().getBlockState(floor).isSolidRender(level(), floor)
-                || level().getBlockState(floor).is(Blocks.MAGMA_BLOCK)) { stairDestination = null; return null; }
+                || level().getBlockState(floor).is(Blocks.MAGMA_BLOCK)) {
+            miningDirection = miningDirection.getClockWise();
+            stairDestination = null;
+            return null;
+        }
         for (BlockPos pos : BlockPos.betweenClosed(stairDestination.offset(-1, -1, -1), stairDestination.offset(1, 2, 1))) {
-            if (!level().hasChunkAt(pos) || !level().getFluidState(pos).isEmpty()) { stairDestination = null; return null; }
+            if (!level().hasChunkAt(pos) || !level().getFluidState(pos).isEmpty()) {
+                miningDirection = miningDirection.getClockWise();
+                stairDestination = null;
+                return null;
+            }
         }
         for (BlockPos pos : new BlockPos[]{stairDestination.above(2), stairDestination.above(), stairDestination}) {
             BlockState state = level().getBlockState(pos);
             if (state.isAir()) continue;
             if (state.hasBlockEntity() || state.getDestroySpeed(level(), pos) < 0 || !hasToolFor(state)) {
-                stairDestination = null; return null;
+                miningDirection = miningDirection.getClockWise();
+                stairDestination = null;
+                return null;
             }
             lookAtPosition(pos.getCenter());
-            return visibleBlock(pos) ? pos : null;
+            return pos;
         }
         return null;
     }

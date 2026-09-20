@@ -95,6 +95,7 @@ public final class LocalNavigation {
         if (state.getCollisionShape(level, pos).isEmpty()) return true;
         if (state.getFluidState().is(net.minecraft.tags.FluidTags.WATER)) return true;
         if (state.is(net.minecraft.tags.BlockTags.CLIMBABLE)) return true;
+        if (state.is(net.minecraft.tags.BlockTags.LEAVES) || state.getBlock().getDescriptionId().contains("leaves")) return true;
         return false;
     }
 
@@ -105,6 +106,7 @@ public final class LocalNavigation {
         if (floor.getFluidState().is(net.minecraft.tags.FluidTags.WATER) || floor.is(Blocks.WATER)) return true;
         if (floor.isAir()) return false;
         if (floor.is(Blocks.FARMLAND) || floor.is(Blocks.DIRT_PATH)) return true;
+        if (floor.is(net.minecraft.tags.BlockTags.LEAVES) || floor.getBlock().getDescriptionId().contains("leaves")) return true;
         if (!floor.getCollisionShape(level, floorPos).isEmpty()) return true;
         return floor.blocksMotion();
     }
