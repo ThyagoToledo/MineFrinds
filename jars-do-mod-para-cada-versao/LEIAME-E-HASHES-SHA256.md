@@ -119,6 +119,25 @@ O mod disponibiliza 3 formas para abrir o painel de controle do companheiro dent
 
 ---
 
+## Release candidate 0.2.0-alpha.1
+
+Os binários atualizados ficam separados dos JARs históricos `0.1.0` em:
+
+```text
+jars-do-mod-para-cada-versao/release-candidates/0.2.0-alpha.1/
+```
+
+| Artefato | Loader / Minecraft | SHA-256 |
+| :--- | :--- | :--- |
+| `companions-forge-1.12.2-r5candidate.jar` | Forge 1.12.2 | `C33F317D33206BD8735C46E310B3D98D0143D511E26306EF05B71657F7696C8D` |
+| `companions-forge-1.20.1-r5candidate.jar` | Forge 1.20.1 | `C3EE8F8E705CE4C4BD38F14AE1BD27696003AD4B52AEE7F584551F02A412DEE9` |
+| `companions-neoforge-1.21.1-r5candidate.jar` | NeoForge 1.21.1 | `B3BAAF8FB5489121DE20C77A97DA9EF7A966D10CB413F1368DA825558B4A1B6A` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-r5candidate.jar` | NeoForge 1.21.1 / Tensura | `0C0BEBF164446B97801A1026AFB0B17E8504948500C97B8A6C2A44CB890AAE40` |
+
+O candidato NeoForge padrão foi instalado na instância `TesteMineFrinds` com o nome compatível `companions-neoforge-1.21.1-0.1.0.jar`; o conteúdo corresponde ao hash acima. Os JARs históricos não foram sobrescritos.
+
+---
+
 ## Como Instalar em Qualquer Modpack ou Launcher
 
 1. Escolha o arquivo `.jar` correspondente a versao do seu Minecraft e mod loader.

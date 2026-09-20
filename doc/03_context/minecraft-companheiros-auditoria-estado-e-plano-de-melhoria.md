@@ -8,13 +8,13 @@ status: auditoria-estatica-e-build-concluidos-jogabilidade-pendente
 
 ## Escopo e evidência
 
-Auditoria realizada em 19/09/2026 sobre o checkout `C:/Users/thyag/Projects/minecraft-companheiros`, o documento [[minecraft-companheiros-documentacao-geral-arquitetura-e-funcionalidades]], os JARs distribuídos e o `latest.log` da instância `TesteMineFrinds`. Nenhum save ou modpack foi alterado.
+Captura inicial da auditoria em 19/09/2026 sobre o checkout `C:/Users/thyag/Projects/minecraft-companheiros`, o documento [[minecraft-companheiros-documentacao-geral-arquitetura-e-funcionalidades]], os JARs distribuídos e o `latest.log` da instância `TesteMineFrinds`. Os incrementos posteriores estão registrados ao final deste documento; nenhum save ou modpack foi alterado.
 
 Evidência obtida:
 
 - árvore Git limpa no commit `63d6572`;
 - `clean test` aprovado nos três adaptadores;
-- 57 testes JUnit aprovados: 19 core, 15 Forge 1.20.1, 18 NeoForge 1.21.1 e 5 Forge 1.12.2;
+- na captura inicial, 57 testes JUnit aprovados: 19 core, 15 Forge 1.20.1, 18 NeoForge 1.21.1 e 5 Forge 1.12.2; o ciclo final desta revisão chegou a 74;
 - o JAR `companions-neoforge-1.21.1-0.1.0.jar` foi descoberto e carregado pelo NeoForge na instância `TesteMineFrinds` em 19/09/2026;
 - o log não contém crash do MineFriends, mas registra apenas inicialização e abertura do guia; não há evidência no log de coleta, crafting, câmera, persistência, morte, skins, IA local ou integrações;
 - os testes de diálogo generativo usam `MockInferenceClient`; comprovam contrato/fallback, não uma chamada real ao Qwen;
@@ -155,10 +155,71 @@ FunctionGemma 270M pode ser comparado depois como roteador de funções especial
   - Persistencia nativa implementada com `CompanionSavedData extends SavedData` no NeoForge 1.21.1, garantindo persistencia de baus designados e dados de companheiros com schema versionado (`schema_version = 1`).
   - Preservacao integral de equipamentos: `updateCompanionSkin` e `spawnPlayerCompanion` salvam e restauram os 6 slots de equipamento (elmo, peitoral, calcas, botas, mao secundaria e mao principal), inventario e niveis de experiencia.
   - Interface grafica `CompanionScreen` vinculada aos dados reais do snapshot de servidor, eliminando completamente strings fixas/falsas na GUI.
-  - 4 novos testes unitarios e de integracao adicionados; total de 64 testes JUnit aprovados com 100% de sucesso nos quatro modulos (`:core`: 20, `neoforge-1.21.1`: 24, `forge-1.20.1`: 15, `forge-1.12.2`: 5).
+  - 4 novos testes unitarios e de integracao adicionados; naquele marco eram 64 testes JUnit aprovados (`:core`: 20, `neoforge-1.21.1`: 24, `forge-1.20.1`: 15, `forge-1.12.2`: 5).
   - JARs recompilados, distribuidos e hashes SHA-256 atualizados em `LEIAME-E-HASHES-SHA256.md`.
 
 - **Proxima etapa recomendada**:
   - **R2 — IA assincrona real e bilingue**: implementar `InferenceSupervisor` desacoplado, validacao rigorosa de envelopes JSON OpenAI-compatible sem chamadas bloqueantes na thread principal do servidor (`processSync`), com conjunto de avaliacao bilingue de intencoes (pt-BR e en-US).
 
+## Revisão do plano detalhado R2
 
+Revisão em 19/09/2026 do `implementation_plan.md` criado para `InferenceSupervisor`. Direção aprovada, execução condicionada aos ajustes abaixo:
+
+1. `InferenceSupervisor` é serviço único por servidor, criado no startup e encerrado no server stopping. Entidades não criam pools, clientes HTTP ou circuit breakers próprios.
+2. Separar `InferenceTransport` de supervisão. O transporte faz uma requisição; o supervisor possui fila limitada, uma geração ativa, timeout lógico, circuit breaker e métricas. Substituir ou simplificar `HttpInferenceClient` para não manter uma segunda fila/thread.
+3. Remover `processSync` de todos os caminhos de produção no Forge 1.20.1 e NeoForge 1.21.1. No 1.12.2, manter IA generativa desabilitada até existir despacho seguro para a thread correta. Apenas depreciar o método não elimina o travamento atual.
+4. Toda solicitação carrega `requestId`, UUID do NPC/dono, revisão de estado, idioma e deadline. Ao concluir, o adaptador agenda na thread do servidor, verifica mundo/dono/NPC/revisão e descarta resposta obsoleta. O modelo nunca altera modo diretamente; propõe intenção que passa pelo mesmo validador das ordens determinísticas.
+5. `OpenAiResponseParser` aceita envelope OpenAI-compatible e conteúdo JSON direto, limita corpo HTTP e fala, rejeita intent desconhecida e preserva Unicode pt-BR. Remover cercas Markdown é tolerância de entrada; não usar regex para interpretar o JSON. Proibição de emoji é preferência configurável, não requisito de segurança.
+6. Configuração padrão: `enabled=false`, endpoint loopback, um slot, fila 8, contexto 2048, saída 160, timeout a medir. Endpoint remoto e credenciais são opt-in; segredos não entram em logs, saves ou pacotes ao cliente.
+7. Circuit breaker usa relógio injetável nos testes, estados fechado/aberto/meio-aberto e uma tentativa controlada de recuperação. Uma falha não deixa `isAvailable=false` permanentemente.
+8. Separar testes rápidos de avaliação real. Unitários usam transporte fake e verificam fila, timeout, cancelamento, parsing e transições. As 100 frases ficam em fixture versionada com conjunto de desenvolvimento separado. O ensaio com Qwen é tarefa opt-in, guarda saídas/hashes e não roda como teste comum.
+9. Meta de intenção é >=95% em cada idioma no conjunto reservado. “100%” não é critério obrigatório. Latência determinística é benchmark informativo; não usar `<1 ms` como assert de CI por ser dependente da máquina.
+10. Acrescentar testes de shutdown/reload, resposta depois de dismiss/morte/troca de dimensão, fila cheia, corpo HTTP excessivo, status não-200, JSON truncado, fala vazia e dois jogadores em idiomas diferentes.
+
+Ordem recomendada: o núcleo do R2 pode ser implementado agora, sem ativar ações do modelo. A integração de intenções com ações depende das garantias de R0; snapshots e feedback usam a fundação concluída em R1. O marco R2 só termina após regressão nas três plataformas, teste opt-in com Qwen e perfil integrado de memória/MSPT.
+
+## Reauditoria posterior aos commits R0 e R1
+
+O roadmap detalhado [[../01_plan/minecraft-companheiros-roadmap-r0-r5-revisado]] substitui o uso de “concluído” sem qualificação. R0 e R1 ficam classificados como **parcialmente concluídos**, com R0.1 e R1.1 obrigatórios. As principais razões são: permissões NeoForge ainda não integram claims reais; crafting ainda usa fórmulas manuais; e `SavedData` cobre metadados, não todo o estado operacional. Os 74 testes atuais passam, mas continuam insuficientes para homologação em jogo.
+
+## Implementação executada após a reauditoria — 19/09/2026
+
+Foram aplicadas correções incrementais de R0/R2 mantendo o estado parcial documentado:
+
+- NeoForge agora publica `BreakEvent` e `EntityPlaceEvent` antes de ações do fake player, respeitando cancelamento de outros mods.
+- Payload de comando NeoForge limita UTF-8, valida UUID do companheiro contra o snapshot do dono e só aceita a raiz `/companion`; comandos arbitrários não são encaminhados.
+- `InferenceSupervisor` passou a centralizar fila limitada, timeout, circuit breaker e shutdown. Forge 1.20.1 e NeoForge 1.21.1 compartilham um supervisor por servidor, desativado por padrão e encerrado no evento de parada.
+- Forge 1.20.1 deixou de esperar `processSync` no caminho de comando: a inferência é assíncrona e os efeitos são reaplicados na thread do servidor. NeoForge usa `handleCommandAsync` para o mesmo retorno seguro.
+- O parser OpenAI-compatible foi mantido sem Gson; o runtime Forge 1.12.2 não garante essa biblioteca, e o parser anterior fazia fallback silencioso para `UNKNOWN_OR_BLOCKED`.
+- Novos testes cobrem envelope, JSON direto, fallback, limite de fala, supervisor desativado e sucesso do transporte fake.
+
+Validação limpa e sequencial em 19/09/2026: Forge 1.12.2, Forge 1.20.1 e NeoForge 1.21.1 passaram `clean test`. Isso comprova compilação e contratos unitários; ainda não comprova claims reais, GameTests, reinício de servidor, modpacks instalados ou limite de RAM de 1/2 GB. R2 continua parcial porque requestId/revisão e descarte de resposta obsoleta ainda não cobrem o caminho de inferência completo, além de faltar avaliação opt-in do modelo local.
+
+## Incremento R1.1 — revisão e requestId — 19/09/2026
+
+O núcleo e o adaptador NeoForge agora carregam revisão monotônica do estado e identificador de requisição nos snapshots. O cliente descarta uma resposta com revisão menor que a já apresentada; o servidor compara a revisão de um `CommandPayload` com o snapshot atual e rejeita comandos obsoletos. O `CompanionManager` atualiza a revisão em spawn, dismiss, skin e baú designado. O round-trip foi coberto por teste NeoForge e as quatro execuções `clean test` continuam aprovadas.
+
+O mesmo caminho agora mantém uma janela de 32 `requestId` por dono para rejeitar replay, isolando o histórico entre jogadores e limpando-o no ciclo de remoção.
+
+O cliente NeoForge também limpa snapshot, feedback e revisão no evento de logout, evitando reutilizar estado visual de uma sessão anterior.
+
+O protocolo recebeu `CompanionCommandRequest` no core. O payload NeoForge converte comandos recebidos para uma enumeração de intenções conhecida antes de encaminhar ao dispatcher; entradas como `/kill @e` ou texto não reconhecido são rejeitadas. A migração das telas para enviar o DTO diretamente ainda está pendente.
+
+A tela NeoForge agora usa esse payload para modos, ações e conversa quando há snapshot válido; spawn, skin e comandos administrativos continuam no fallback vanilla até receberem intents próprias.
+
+Essa entrega fecha apenas a parte de ordenação do R1.1. Ainda faltam intents tipadas sem texto de comando, limpeza de sessão no logout/troca de servidor e persistência das tarefas/reservas de operação.
+
+## Incremento R3 — cadência de coleta — 19/09/2026
+
+`CompanionServerPlayer` não pesquisa mais drops do chão em todos os ticks. A coleta automática passou a rodar a cada cinco ticks (4 Hz), mantendo o comportamento e reduzindo o custo de busca de entidades por NPC. A fila de inferência já é compartilhada e limitada por servidor. Isso inicia R3, mas não substitui o profiling de MSPT/heap nem a extração dos controladores planejados.
+
+## Incremento R0/R2/R3/R5 — ciclo final desta revisão — 19/09/2026
+
+- O crafting NeoForge agora calcula `remainingCount` depois de retirar itens prontos da bolsa ou do baú. A fabricação pendente e a entrega produzem somente o saldo solicitado; isso elimina o excesso causado por retirada parcial.
+- O core recebeu `CraftTransaction`, com plano imutável e commit atômico para consumo/saída. Quatro testes cobrem sucesso, entrada insuficiente, saída cheia e requisito inválido sem mutação parcial. A integração com `RecipeManager` e itens restantes ainda é pendência R0.2.
+- Conversa livre enviada pelo payload NeoForge não passa mais pelo dispatcher textual: o request validado chega ao provider assíncrono e a resposta é descartada se a revisão do snapshot mudou antes da aplicação. Modos e ações permanecem no dispatcher apenas durante a migração das intents.
+- Varreduras de árvore/minério/fazenda sem alvo têm intervalo de 20 ticks; busca de monstros sem alvo prioritário ocorre a cada 10 ticks. O supervisor passou a expor contadores de requisições, sucesso, falha e rejeição.
+- Foi adicionado `tools/collect-r5-instance-inventory.ps1`, executado contra `C:/Users/thyag/curseforge/minecraft/Instances`. O relatório registrou seis instâncias e está em `doc/03_context/minecraft-companheiros-r5-inventario-instances.md`.
+- Validação JVM sequencial deste ciclo: core 29, Forge 1.20.1 15, NeoForge 1.21.1 25 e Forge 1.12.2 5; total de 74 testes aprovados. Isso não substitui a execução de cliente/servidor e medições de RAM/MSPT nos saves descartáveis.
+
+O estado correto permanece: R0, R1, R2 e R3 avançaram, mas continuam parciais; R4 depende de assets/UX finais; R5 está preparado com inventário automatizado, porém sem homologação funcional declarada.

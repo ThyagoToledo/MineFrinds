@@ -535,10 +535,10 @@ public class CompanionCommands {
         if (lower.startsWith("ei ") || lower.startsWith("companheiro") || lower.endsWith("?")) {
             NeoForgeCompanionEntity dataEntity = companion.getDataEntity();
             if (dataEntity != null && dataEntity.getDialogueProvider() != null) {
-                dataEntity.getDialogueProvider().processAsync(rawText, "pt_br", null, null)
+                dataEntity.handleCommandAsync(rawText, "pt_br")
                         .thenAccept(response -> {
-                            if (response != null && response.getSpeech() != null) {
-                                companion.speakToOwner(response.getSpeech());
+                            if (response != null && response.getSpeech() != null && player.getServer() != null) {
+                                player.getServer().execute(() -> companion.speakToOwner(response.getSpeech()));
                             }
                         });
                 return true;

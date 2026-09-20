@@ -58,4 +58,16 @@ public class NeoForgeFakePlayerTests {
         // Limpeza total
         assertDoesNotThrow(CompanionManager::clearAll);
     }
+
+    @Test
+    @DisplayName("Rejeitar replay de requestId sem misturar historico entre donos")
+    void testRequestDeduplication() {
+        UUID ownerA = UUID.randomUUID();
+        UUID ownerB = UUID.randomUUID();
+        UUID request = UUID.randomUUID();
+
+        assertTrue(CompanionManager.registerRequest(ownerA, request));
+        assertFalse(CompanionManager.registerRequest(ownerA, request));
+        assertTrue(CompanionManager.registerRequest(ownerB, request));
+    }
 }

@@ -5,6 +5,7 @@ import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.thyagotoledo.companions.core.ai.ConversationMemory;
+import com.thyagotoledo.companions.core.ai.InferenceSupervisor;
 import com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider;
 import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.core.model.Personality;
@@ -32,8 +33,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.EnumMap;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -46,6 +50,15 @@ public class CompanionManager {
     private static final Map<UUID, NeoForgeCompanionEntity> COMPANIONS_BY_OWNER = new ConcurrentHashMap<>();
     private static final Map<UUID, CompanionServerPlayer> FAKE_PLAYERS_BY_OWNER = new ConcurrentHashMap<>();
     private static final Map<UUID, net.minecraft.core.BlockPos> DESIGNATED_CHESTS = new ConcurrentHashMap<>();
+    private static final Map<UUID, Long> REVISIONS_BY_OWNER = new ConcurrentHashMap<>();
+    private static final Map<UUID, Set<UUID>> REQUESTS_BY_OWNER = new ConcurrentHashMap<>();
+    private static final int MAX_REQUEST_HISTORY = 32;
+    private static final InferenceSupervisor INFERENCE_SUPERVISOR = new InferenceSupervisor(
+            Boolean.parseBoolean(System.getProperty("companions.ai.enabled", "false")),
+            System.getProperty("companions.ai.endpoint", "http://127.0.0.1:8080/v1/chat/completions"),
+            1500,
+            8
+    );
 
     public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos) {
         setDesignatedChest(ownerUuid, pos, null);
@@ -53,6 +66,7 @@ public class CompanionManager {
 
     public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos, ServerLevel level) {
         if (ownerUuid == null) return;
+        bumpRevision(ownerUuid);
         if (pos == null) {
             DESIGNATED_CHESTS.remove(ownerUuid);
             if (level != null) {
@@ -99,6 +113,7 @@ public class CompanionManager {
         if (ownerUuid == null) {
             return CompanionSnapshot.empty(null);
         }
+        long revision = revisionOf(ownerUuid);
 
         CompanionServerPlayer fakePlayer = FAKE_PLAYERS_BY_OWNER.get(ownerUuid);
         NeoForgeCompanionEntity entity = COMPANIONS_BY_OWNER.get(ownerUuid);
@@ -145,7 +160,8 @@ public class CompanionManager {
                     tensuraRace,
                     tensuraRank,
                     tensuraEp,
-                    "Companheiro ativo e operando."
+                    "Companheiro ativo e operando.",
+                    revision
             );
         }
 
@@ -168,7 +184,8 @@ public class CompanionManager {
                     tensuraRace,
                     tensuraRank,
                     tensuraEp,
-                    "Companheiro registrado (aguardando invocacao)."
+                    "Companheiro registrado (aguardando invocacao).",
+                    revision
             );
         }
 
@@ -200,13 +217,47 @@ public class CompanionManager {
                             tensuraRace,
                             tensuraRank,
                             rec.getTensuraEp(),
-                            "Companheiro carregado da persistencia do mundo."
+                            "Companheiro carregado da persistencia do mundo.",
+                            revision
                     );
                 }
             }
         }
 
-        return CompanionSnapshot.empty(ownerUuid);
+        return CompanionSnapshot.empty(ownerUuid, revision);
+    }
+
+    private static long revisionOf(UUID ownerUuid) {
+        return REVISIONS_BY_OWNER.computeIfAbsent(ownerUuid, ignored -> 1L);
+    }
+
+    public static long getRevision(UUID ownerUuid) {
+        return ownerUuid != null ? revisionOf(ownerUuid) : 0L;
+    }
+
+    public static long bumpRevision(UUID ownerUuid) {
+        if (ownerUuid == null) return 0L;
+        return REVISIONS_BY_OWNER.merge(ownerUuid, 1L, Long::sum);
+    }
+
+    /** Aceita uma requisição uma única vez por dono, mantendo uma janela limitada contra replay. */
+    public static boolean registerRequest(UUID ownerUuid, UUID requestId) {
+        if (ownerUuid == null || requestId == null) return true;
+        Set<UUID> history = REQUESTS_BY_OWNER.computeIfAbsent(ownerUuid,
+                ignored -> Collections.synchronizedSet(new LinkedHashSet<UUID>()));
+        synchronized (history) {
+            if (history.contains(requestId)) return false;
+            while (history.size() >= MAX_REQUEST_HISTORY) {
+                UUID oldest = history.iterator().next();
+                history.remove(oldest);
+            }
+            history.add(requestId);
+            return true;
+        }
+    }
+
+    private static void clearRequestHistory(UUID ownerUuid) {
+        if (ownerUuid != null) REQUESTS_BY_OWNER.remove(ownerUuid);
     }
 
 
@@ -229,7 +280,7 @@ public class CompanionManager {
                     : "Companheiro";
 
             ConversationMemory memory = new ConversationMemory(6);
-            HybridDialogueProvider dialogueProvider = new HybridDialogueProvider(null, null, memory, null);
+            HybridDialogueProvider dialogueProvider = new HybridDialogueProvider(null, INFERENCE_SUPERVISOR, memory, null);
             NeoForgePermissionService permissionService = new NeoForgePermissionService();
             NeoForgeQuestService questService = new NeoForgeQuestService();
             TensuraCompanionStats tensuraStats = new TensuraCompanionStats();
@@ -250,12 +301,13 @@ public class CompanionManager {
 
     public static NeoForgeCompanionEntity spawnCompanion(UUID ownerUuid, String customName) {
         if (ownerUuid == null) return null;
+        bumpRevision(ownerUuid);
         String finalName = (customName != null && !customName.trim().isEmpty())
                 ? customName.trim()
                 : "Companheiro";
 
         ConversationMemory memory = new ConversationMemory(6);
-        HybridDialogueProvider dialogueProvider = new HybridDialogueProvider(null, null, memory, null);
+        HybridDialogueProvider dialogueProvider = new HybridDialogueProvider(null, INFERENCE_SUPERVISOR, memory, null);
         NeoForgePermissionService permissionService = new NeoForgePermissionService();
         NeoForgeQuestService questService = new NeoForgeQuestService();
         TensuraCompanionStats tensuraStats = new TensuraCompanionStats();
@@ -290,6 +342,7 @@ public class CompanionManager {
         }
 
         UUID ownerUuid = owner.getUUID();
+        bumpRevision(ownerUuid);
         String finalName = (customName != null && !customName.trim().isEmpty())
                 ? customName.trim()
                 : "Companheiro";
@@ -520,6 +573,7 @@ public class CompanionManager {
 
     public static boolean dismissPlayerCompanion(UUID ownerUuid) {
         if (ownerUuid == null) return false;
+        bumpRevision(ownerUuid);
         CompanionServerPlayer fakePlayer = FAKE_PLAYERS_BY_OWNER.remove(ownerUuid);
         if (fakePlayer != null) {
             fakePlayer.dismiss();
@@ -532,11 +586,14 @@ public class CompanionManager {
         NeoForgeCompanionEntity entity = getCompanionForOwner(ownerUuid);
         if (entity != null) {
             entity.setCustomSkin(skinName);
+            bumpRevision(ownerUuid);
         }
     }
 
     public static void removeCompanion(UUID ownerUuid) {
         if (ownerUuid != null) {
+            bumpRevision(ownerUuid);
+            clearRequestHistory(ownerUuid);
             COMPANIONS_BY_OWNER.remove(ownerUuid);
             dismissPlayerCompanion(ownerUuid);
         }
@@ -549,5 +606,11 @@ public class CompanionManager {
         FAKE_PLAYERS_BY_OWNER.clear();
         COMPANIONS_BY_OWNER.clear();
         DESIGNATED_CHESTS.clear();
+        REVISIONS_BY_OWNER.clear();
+        REQUESTS_BY_OWNER.clear();
+    }
+
+    public static void shutdownInference() {
+        INFERENCE_SUPERVISOR.shutdown();
     }
 }

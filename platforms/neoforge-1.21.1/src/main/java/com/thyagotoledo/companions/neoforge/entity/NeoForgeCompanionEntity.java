@@ -4,6 +4,7 @@ import com.thyagotoledo.companions.core.ai.ConversationMemory;
 import com.thyagotoledo.companions.core.dialogue.DialogueResponse;
 import com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider;
 import com.thyagotoledo.companions.core.model.CompanionMode;
+import com.thyagotoledo.companions.core.model.CompanionCommandRequest;
 import com.thyagotoledo.companions.core.model.CompanionProfile;
 import com.thyagotoledo.companions.core.model.InventorySnapshot;
 import com.thyagotoledo.companions.core.model.ItemSlot;
@@ -15,6 +16,7 @@ import com.thyagotoledo.companions.neoforge.tensura.TensuraNeoOtherworldAdapter;
 
 import java.util.Collections;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Entidade companheira adaptada para a arquitetura NeoForge 21.1.248 (Minecraft 1.21.1).
@@ -71,7 +73,10 @@ public class NeoForgeCompanionEntity {
         if (dialogueProvider == null) {
             return null;
         }
-        DialogueResponse response = dialogueProvider.processSync(rawCommand, preferredLocale, profile, inventory, 1500L);
+        // Compatibilidade de API síncrona para integrações antigas/testes. Os
+        // comandos do jogo usam handleCommandAsync e não entram neste método.
+        DialogueResponse response = dialogueProvider.processSync(
+                rawCommand, preferredLocale, profile, inventory, 1500L);
         if (response != null && response.getIntent() != null) {
             if (response.getIntent().getType() == com.thyagotoledo.companions.core.dialogue.IntentType.TENSURA_STATUS) {
                 String formatted = tensuraAdapter.formatTensuraStatus(tensuraStats, preferredLocale);
@@ -87,6 +92,26 @@ public class NeoForgeCompanionEntity {
             }
         }
         return response;
+    }
+
+    /**
+     * Enfileira a conversa no supervisor de IA sem bloquear a thread do servidor.
+     * O chamador deve aplicar efeitos de mundo no executor do servidor.
+     */
+    public CompletableFuture<DialogueResponse> handleCommandAsync(String rawCommand, String preferredLocale) {
+        if (dialogueProvider == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return dialogueProvider.processAsync(rawCommand, preferredLocale, profile, inventory);
+    }
+
+    /** Processa somente conversa livre já validada pelo protocolo C2S. */
+    public CompletableFuture<DialogueResponse> handleCommandAsync(CompanionCommandRequest request) {
+        if (request == null || !request.isValid()
+                || request.getIntent() != com.thyagotoledo.companions.core.dialogue.IntentType.CASUAL_CHAT) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return handleCommandAsync(request.getTarget(), request.getLocale());
     }
 
     public TensuraCompanionStats getTensuraStats() {
@@ -170,4 +195,3 @@ public class NeoForgeCompanionEntity {
         }
     }
 }
-

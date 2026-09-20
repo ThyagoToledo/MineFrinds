@@ -6,6 +6,8 @@ import com.thyagotoledo.companions.neoforge.network.NeoForgeCompanionPayloads;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.server.ServerStoppingEvent;
+import net.neoforged.bus.api.SubscribeEvent;
 
 /**
  * Ponto de entrada oficial do mod Companions para NeoForge 21.1.248+ (Minecraft 1.21.1).
@@ -30,5 +32,9 @@ public class CompanionsNeoForgeMod {
             modEventBus.addListener(NeoForgeCompanionPayloads::onRegisterPayloadHandlers);
         }
     }
-}
 
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        com.thyagotoledo.companions.neoforge.entity.CompanionManager.shutdownInference();
+    }
+}

@@ -8,6 +8,8 @@ import com.thyagotoledo.companions.forge.registry.ModItems;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.entity.EntityAttributeCreationEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -39,5 +41,10 @@ public final class CompanionsForgeMod {
 
     private void registerAttributes(final EntityAttributeCreationEvent event) {
         event.put(ModEntities.COMPANION.get(), CompanionEntity.createAttributes().build());
+    }
+
+    @SubscribeEvent
+    public void onServerStopping(ServerStoppingEvent event) {
+        CompanionEntity.shutdownInference();
     }
 }

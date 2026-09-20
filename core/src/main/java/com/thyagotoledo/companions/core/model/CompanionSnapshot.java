@@ -27,6 +27,7 @@ public final class CompanionSnapshot {
     private final String tensuraRank;
     private final long tensuraEp;
     private final String lastMessage;
+    private final long revision;
 
     public CompanionSnapshot(
             UUID companionUuid,
@@ -48,6 +49,32 @@ public final class CompanionSnapshot {
             long tensuraEp,
             String lastMessage
     ) {
+        this(companionUuid, ownerUuid, name, mode, currentHealth, maxHealth, spawned, fakePlayer,
+                skinName, hasDesignatedChest, designatedChestX, designatedChestY, designatedChestZ,
+                tensuraActive, tensuraRace, tensuraRank, tensuraEp, lastMessage, 0L);
+    }
+
+    public CompanionSnapshot(
+            UUID companionUuid,
+            UUID ownerUuid,
+            String name,
+            CompanionMode mode,
+            float currentHealth,
+            float maxHealth,
+            boolean spawned,
+            boolean fakePlayer,
+            String skinName,
+            boolean hasDesignatedChest,
+            int designatedChestX,
+            int designatedChestY,
+            int designatedChestZ,
+            boolean tensuraActive,
+            String tensuraRace,
+            String tensuraRank,
+            long tensuraEp,
+            String lastMessage,
+            long revision
+    ) {
         this.companionUuid = companionUuid;
         this.ownerUuid = ownerUuid;
         this.name = name != null ? name : "Companheiro";
@@ -66,9 +93,14 @@ public final class CompanionSnapshot {
         this.tensuraRank = tensuraRank != null ? tensuraRank : "F";
         this.tensuraEp = Math.max(0L, tensuraEp);
         this.lastMessage = lastMessage != null ? lastMessage : "";
+        this.revision = Math.max(0L, revision);
     }
 
     public static CompanionSnapshot empty(UUID ownerUuid) {
+        return empty(ownerUuid, 0L);
+    }
+
+    public static CompanionSnapshot empty(UUID ownerUuid, long revision) {
         return new CompanionSnapshot(
                 null,
                 ownerUuid,
@@ -87,7 +119,8 @@ public final class CompanionSnapshot {
                 "N/A",
                 "N/A",
                 0L,
-                "Nenhum companheiro ativo no momento."
+                "Nenhum companheiro ativo no momento.",
+                revision
         );
     }
 
@@ -163,6 +196,10 @@ public final class CompanionSnapshot {
         return lastMessage;
     }
 
+    public long getRevision() {
+        return revision;
+    }
+
     public String getHealthDisplay() {
         return String.format(java.util.Locale.ROOT, "%.0f / %.0f", currentHealth, maxHealth);
     }
@@ -200,6 +237,7 @@ public final class CompanionSnapshot {
                 designatedChestZ == that.designatedChestZ &&
                 tensuraActive == that.tensuraActive &&
                 tensuraEp == that.tensuraEp &&
+                revision == that.revision &&
                 Objects.equals(companionUuid, that.companionUuid) &&
                 Objects.equals(ownerUuid, that.ownerUuid) &&
                 Objects.equals(name, that.name) &&
@@ -215,7 +253,7 @@ public final class CompanionSnapshot {
         return Objects.hash(companionUuid, ownerUuid, name, mode, currentHealth, maxHealth,
                 spawned, fakePlayer, skinName, hasDesignatedChest, designatedChestX,
                 designatedChestY, designatedChestZ, tensuraActive, tensuraRace, tensuraRank,
-                tensuraEp, lastMessage);
+                tensuraEp, lastMessage, revision);
     }
 
     @Override

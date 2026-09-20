@@ -1,6 +1,7 @@
 package com.thyagotoledo.companions.neoforge.client.gui;
 
 import com.thyagotoledo.companions.core.model.CompanionSnapshot;
+import com.thyagotoledo.companions.core.model.CompanionCommandRequest;
 import com.thyagotoledo.companions.neoforge.network.NeoForgeCompanionPayloads;
 
 import net.minecraft.client.Minecraft;
@@ -13,6 +14,8 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.lwjgl.glfw.GLFW;
+
+import java.util.UUID;
 
 /**
  * Interface grafica modular com abas do mod Companions no Minecraft 1.21.1 / NeoForge.
@@ -44,6 +47,8 @@ public class CompanionScreen extends Screen {
 
     // Snapshot em tempo real recebido do servidor via CustomPacketPayload
     private static CompanionSnapshot activeSnapshot = null;
+    private static UUID activeSnapshotRequestId = null;
+    private static long activeSnapshotRevision = -1L;
     private static String pendingStatusFeedback = null;
 
     // Campos de input
@@ -57,11 +62,30 @@ public class CompanionScreen extends Screen {
     private String lastStatusMessage = "Pronto para receber ordens.";
 
     public static void setActiveSnapshot(CompanionSnapshot snapshot) {
+        setActiveSnapshot(null, snapshot);
+    }
+
+    public static void setActiveSnapshot(UUID requestId, CompanionSnapshot snapshot) {
+        if (snapshot == null) return;
+        if (activeSnapshot != null && snapshot.getRevision() < activeSnapshotRevision) return;
         activeSnapshot = snapshot;
+        activeSnapshotRequestId = requestId;
+        activeSnapshotRevision = snapshot.getRevision();
     }
 
     public static CompanionSnapshot getActiveSnapshot() {
         return activeSnapshot;
+    }
+
+    public static UUID getActiveSnapshotRequestId() {
+        return activeSnapshotRequestId;
+    }
+
+    public static void clearSessionState() {
+        activeSnapshot = null;
+        activeSnapshotRequestId = null;
+        activeSnapshotRevision = -1L;
+        pendingStatusFeedback = null;
     }
 
     public static void setLastStatusFeedback(String speech) {
@@ -402,6 +426,9 @@ public class CompanionScreen extends Screen {
         if (text != null && !text.trim().isEmpty()) {
             this.lastStatusMessage = "Ordem enviada: \"" + text + "\"";
             if (this.minecraft != null && this.minecraft.player != null && this.minecraft.player.connection != null) {
+                if (sendTypedPayload(text)) {
+                    return;
+                }
                 if (text.startsWith("/")) {
                     this.minecraft.player.connection.sendCommand(text.substring(1));
                 } else {
@@ -409,6 +436,26 @@ public class CompanionScreen extends Screen {
                 }
             }
         }
+    }
+
+    private boolean sendTypedPayload(String text) {
+        if (activeSnapshot == null || activeSnapshot.getCompanionUuid() == null) return false;
+        CompanionCommandRequest request = CompanionCommandRequest.fromText(
+                UUID.randomUUID(),
+                activeSnapshot.getCompanionUuid(),
+                text,
+                "pt_br",
+                activeSnapshot.getRevision()
+        );
+        if (!request.isValid()) return false;
+        PacketDistributor.sendToServer(new NeoForgeCompanionPayloads.CommandPayload(
+                request.getCompanionId(),
+                text,
+                request.getLocale(),
+                request.getRequestId(),
+                request.getExpectedRevision()
+        ));
+        return true;
     }
 
     @Override

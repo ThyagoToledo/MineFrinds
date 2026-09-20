@@ -264,7 +264,8 @@ public class NeoForgeCompanionTests {
                 "Slime",
                 "Special A",
                 120000L,
-                "Coletando troncos."
+                "Coletando troncos.",
+                7L
         );
         NeoForgeCompanionPayloads.SnapshotPayload snapPayload = new NeoForgeCompanionPayloads.SnapshotPayload(snapshot);
         assertEquals("companions:snapshot", snapPayload.type().id().toString());
@@ -276,6 +277,8 @@ public class NeoForgeCompanionTests {
                 NeoForgeCompanionPayloads.SnapshotPayload.STREAM_CODEC.decode(snapBuf);
         assertNotNull(decodedSnap);
         assertEquals(snapshot, decodedSnap.snapshot());
+        assertEquals(snapPayload.getRequestId(), decodedSnap.getRequestId());
+        assertEquals(7L, decodedSnap.snapshot().getRevision());
         assertEquals("16 / 20", decodedSnap.snapshot().getHealthDisplay());
         assertEquals("[50, 64, -100]", decodedSnap.snapshot().getChestDisplay());
         assertEquals("Jogador Oficial (Lan/Server)", decodedSnap.snapshot().getPresenceDisplay());
@@ -294,6 +297,8 @@ public class NeoForgeCompanionTests {
         assertEquals(companionUuid, decodedCmd.getCompanionUuid());
         assertEquals("me segue", decodedCmd.getCommand());
         assertEquals("pt_br", decodedCmd.getLocale());
+        assertEquals(cmd.getRequestId(), decodedCmd.getRequestId());
+        assertEquals(0L, decodedCmd.getRevision());
 
         // 4. FeedbackPayload (S2C)
         NeoForgeCompanionPayloads.FeedbackPayload feedback =
@@ -390,4 +395,3 @@ public class NeoForgeCompanionTests {
         CompanionScreen.setActiveSnapshot(null);
     }
 }
-

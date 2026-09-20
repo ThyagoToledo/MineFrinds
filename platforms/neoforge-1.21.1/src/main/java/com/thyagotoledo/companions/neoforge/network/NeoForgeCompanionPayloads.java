@@ -1,9 +1,12 @@
 package com.thyagotoledo.companions.neoforge.network;
 
 import com.thyagotoledo.companions.core.model.CompanionMode;
+import com.thyagotoledo.companions.core.model.CompanionCommandRequest;
 import com.thyagotoledo.companions.core.model.CompanionSnapshot;
 import com.thyagotoledo.companions.neoforge.client.gui.CompanionScreen;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
+import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
+import com.thyagotoledo.companions.neoforge.entity.player.CompanionServerPlayer;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -32,11 +35,29 @@ public final class NeoForgeCompanionPayloads {
     /**
      * Payload C2S: solicitacao de snapshot do companheiro ao abrir a interface grafica.
      */
-    public record RequestSnapshotPayload() implements CustomPacketPayload {
+    public record RequestSnapshotPayload(UUID requestId) implements CustomPacketPayload {
         public static final Type<RequestSnapshotPayload> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(MODID, "request_snapshot"));
         public static final StreamCodec<FriendlyByteBuf, RequestSnapshotPayload> STREAM_CODEC =
-                StreamCodec.unit(new RequestSnapshotPayload());
+                StreamCodec.of(RequestSnapshotPayload::write, RequestSnapshotPayload::read);
+
+        public RequestSnapshotPayload() {
+            this(UUID.randomUUID());
+        }
+
+        public RequestSnapshotPayload {
+            if (requestId == null) {
+                requestId = UUID.randomUUID();
+            }
+        }
+
+        private static void write(FriendlyByteBuf buf, RequestSnapshotPayload payload) {
+            buf.writeUUID(payload.requestId());
+        }
+
+        private static RequestSnapshotPayload read(FriendlyByteBuf buf) {
+            return new RequestSnapshotPayload(buf.readUUID());
+        }
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
@@ -51,13 +72,14 @@ public final class NeoForgeCompanionPayloads {
     /**
      * Payload S2C: sincronizacao do snapshot de estado real do companheiro com o cliente.
      */
-    public record SnapshotPayload(CompanionSnapshot snapshot) implements CustomPacketPayload {
+    public record SnapshotPayload(UUID requestId, CompanionSnapshot snapshot) implements CustomPacketPayload {
         public static final Type<SnapshotPayload> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(MODID, "snapshot"));
         public static final StreamCodec<FriendlyByteBuf, SnapshotPayload> STREAM_CODEC =
                 StreamCodec.of(SnapshotPayload::write, SnapshotPayload::read);
 
         public static void write(FriendlyByteBuf buf, SnapshotPayload payload) {
+            buf.writeUUID(payload.requestId());
             CompanionSnapshot s = payload.snapshot() != null ? payload.snapshot() : CompanionSnapshot.empty(null);
             buf.writeBoolean(s.getCompanionUuid() != null);
             if (s.getCompanionUuid() != null) {
@@ -83,9 +105,11 @@ public final class NeoForgeCompanionPayloads {
             buf.writeUtf(s.getTensuraRank() != null ? s.getTensuraRank() : "");
             buf.writeLong(s.getTensuraEp());
             buf.writeUtf(s.getLastMessage() != null ? s.getLastMessage() : "");
+            buf.writeLong(s.getRevision());
         }
 
         public static SnapshotPayload read(FriendlyByteBuf buf) {
+            UUID requestId = buf.readUUID();
             UUID companionUuid = buf.readBoolean() ? buf.readUUID() : null;
             UUID ownerUuid = buf.readBoolean() ? buf.readUUID() : null;
             String name = buf.readUtf();
@@ -110,13 +134,24 @@ public final class NeoForgeCompanionPayloads {
             String tensuraRank = buf.readUtf();
             long tensuraEp = buf.readLong();
             String lastMessage = buf.readUtf();
+            long revision = buf.readLong();
 
             CompanionSnapshot snapshot = new CompanionSnapshot(
                     companionUuid, ownerUuid, name, mode, currentHealth, maxHealth,
                     spawned, fakePlayer, skinName, hasChest, chestX, chestY, chestZ,
-                    tensuraActive, tensuraRace, tensuraRank, tensuraEp, lastMessage
+                    tensuraActive, tensuraRace, tensuraRank, tensuraEp, lastMessage, revision
             );
-            return new SnapshotPayload(snapshot);
+            return new SnapshotPayload(requestId, snapshot);
+        }
+
+        public SnapshotPayload(CompanionSnapshot snapshot) {
+            this(UUID.randomUUID(), snapshot);
+        }
+
+        public SnapshotPayload {
+            if (requestId == null) {
+                requestId = UUID.randomUUID();
+            }
         }
 
         @Override
@@ -128,6 +163,10 @@ public final class NeoForgeCompanionPayloads {
             return snapshot;
         }
 
+        public UUID getRequestId() {
+            return requestId;
+        }
+
         public String getChannelName() {
             return CHANNEL_SNAPSHOT;
         }
@@ -136,16 +175,22 @@ public final class NeoForgeCompanionPayloads {
     /**
      * Payload C2S: envio tipado de comando ou mensagem para o companheiro.
      */
-    public record CommandPayload(UUID companionUuid, String command, String locale) implements CustomPacketPayload {
+    public record CommandPayload(UUID companionUuid, String command, String locale, UUID requestId, long revision) implements CustomPacketPayload {
         public static final Type<CommandPayload> TYPE =
                 new Type<>(ResourceLocation.fromNamespaceAndPath(MODID, "command_payload"));
         public static final StreamCodec<FriendlyByteBuf, CommandPayload> STREAM_CODEC =
                 StreamCodec.of(CommandPayload::write, CommandPayload::read);
 
         public CommandPayload(UUID companionUuid, String command, String locale) {
+            this(companionUuid, command, locale, UUID.randomUUID(), 0L);
+        }
+
+        public CommandPayload(UUID companionUuid, String command, String locale, UUID requestId, long revision) {
             this.companionUuid = companionUuid;
             this.command = command != null ? command : "";
             this.locale = locale != null ? locale : "pt_br";
+            this.requestId = requestId != null ? requestId : UUID.randomUUID();
+            this.revision = Math.max(0L, revision);
         }
 
         public static void write(FriendlyByteBuf buf, CommandPayload payload) {
@@ -153,15 +198,19 @@ public final class NeoForgeCompanionPayloads {
             if (payload.companionUuid != null) {
                 buf.writeUUID(payload.companionUuid);
             }
-            buf.writeUtf(payload.command != null ? payload.command : "");
-            buf.writeUtf(payload.locale != null ? payload.locale : "pt_br");
+            buf.writeUUID(payload.requestId);
+            buf.writeLong(payload.revision);
+            buf.writeUtf(payload.command != null ? payload.command : "", 256);
+            buf.writeUtf(payload.locale != null ? payload.locale : "pt_br", 16);
         }
 
         public static CommandPayload read(FriendlyByteBuf buf) {
             UUID companionUuid = buf.readBoolean() ? buf.readUUID() : null;
-            String command = buf.readUtf();
-            String locale = buf.readUtf();
-            return new CommandPayload(companionUuid, command, locale);
+            UUID requestId = buf.readUUID();
+            long revision = buf.readLong();
+            String command = buf.readUtf(256);
+            String locale = buf.readUtf(16);
+            return new CommandPayload(companionUuid, command, locale, requestId, revision);
         }
 
         public UUID getCompanionUuid() {
@@ -174,6 +223,18 @@ public final class NeoForgeCompanionPayloads {
 
         public String getLocale() {
             return locale;
+        }
+
+        public UUID getRequestId() {
+            return requestId;
+        }
+
+        public long getRevision() {
+            return revision;
+        }
+
+        public CompanionCommandRequest toRequest() {
+            return CompanionCommandRequest.fromText(requestId, companionUuid, command, locale, revision);
         }
 
         public String getChannelName() {
@@ -283,14 +344,14 @@ public final class NeoForgeCompanionPayloads {
             if (player instanceof ServerPlayer) {
                 ServerPlayer serverPlayer = (ServerPlayer) player;
                 CompanionSnapshot snapshot = CompanionManager.buildSnapshot(serverPlayer.getUUID(), serverPlayer.serverLevel());
-                context.reply(new SnapshotPayload(snapshot));
+                context.reply(new SnapshotPayload(payload.requestId(), snapshot));
             }
         });
     }
 
     public static void handleSnapshotClient(SnapshotPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ClientPacketHandler.applySnapshot(payload.snapshot());
+            ClientPacketHandler.applySnapshot(payload.requestId(), payload.snapshot());
         });
     }
 
@@ -301,10 +362,49 @@ public final class NeoForgeCompanionPayloads {
                 ServerPlayer serverPlayer = (ServerPlayer) player;
                 if (serverPlayer.getServer() != null) {
                     String cmd = payload.getCommand();
+                    if (payload.getCompanionUuid() == null || cmd == null || cmd.length() > 256) {
+                        return;
+                    }
+                    CompanionSnapshot snapshot = CompanionManager.buildSnapshot(serverPlayer.getUUID(), serverPlayer.serverLevel());
+                    if (snapshot.getCompanionUuid() == null || !snapshot.getCompanionUuid().equals(payload.getCompanionUuid())) {
+                        return;
+                    }
+                    if (payload.getRevision() > 0L && payload.getRevision() != snapshot.getRevision()) {
+                        return;
+                    }
+                    if (!payload.toRequest().isValid()) {
+                        return;
+                    }
+                    if (!CompanionManager.registerRequest(serverPlayer.getUUID(), payload.getRequestId())) {
+                        return;
+                    }
+                    CompanionCommandRequest request = payload.toRequest();
+                    if (request.getIntent() == com.thyagotoledo.companions.core.dialogue.IntentType.CASUAL_CHAT) {
+                        NeoForgeCompanionEntity dataEntity = CompanionManager.getCompanionForOwner(serverPlayer.getUUID());
+                        if (dataEntity == null) return;
+                        dataEntity.handleCommandAsync(request).thenAccept(response ->
+                                serverPlayer.getServer().execute(() -> {
+                                    CompanionSnapshot current = CompanionManager.buildSnapshot(
+                                            serverPlayer.getUUID(), serverPlayer.serverLevel());
+                                    if (current.getRevision() != request.getExpectedRevision()) return;
+                                    if (response != null && response.getSpeech() != null) {
+                                        CompanionServerPlayer fake = CompanionManager.getPlayerCompanion(serverPlayer.getUUID());
+                                        if (fake != null) fake.speakToOwner(response.getSpeech());
+                                    }
+                                }));
+                        return;
+                    }
                     if (cmd != null && !cmd.trim().isEmpty()) {
                         String clean = cmd.trim();
                         if (clean.startsWith("/")) {
-                            serverPlayer.getServer().getCommands().performPrefixedCommand(serverPlayer.createCommandSourceStack(), clean.substring(1));
+                            String commandBody = clean.substring(1).trim();
+                            String root = commandBody.contains(" ")
+                                    ? commandBody.substring(0, commandBody.indexOf(' '))
+                                    : commandBody;
+                            if (!root.equalsIgnoreCase("companion")) {
+                                return;
+                            }
+                            serverPlayer.getServer().getCommands().performPrefixedCommand(serverPlayer.createCommandSourceStack(), commandBody);
                         } else {
                             serverPlayer.getServer().getCommands().performPrefixedCommand(serverPlayer.createCommandSourceStack(), "companion chat " + clean);
                         }
@@ -322,8 +422,8 @@ public final class NeoForgeCompanionPayloads {
 
 
     private static final class ClientPacketHandler {
-        static void applySnapshot(CompanionSnapshot snapshot) {
-            CompanionScreen.setActiveSnapshot(snapshot);
+        static void applySnapshot(UUID requestId, CompanionSnapshot snapshot) {
+            CompanionScreen.setActiveSnapshot(requestId, snapshot);
         }
 
         static void applyFeedback(String speech) {

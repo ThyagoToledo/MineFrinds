@@ -44,6 +44,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
@@ -69,6 +72,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private BlockPos targetWorkPos = null;
     private int workBreakTicks = 0;
     private int harvestedCount = 0;
+    private long nextWorkScanTick = 0L;
 
     // Meta pendente de crafting autonomo
     private String pendingCraftItem = null;
@@ -112,6 +116,17 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (this.serverLevel() != null && !this.serverLevel().mayInteract(this, pos)) {
             return false;
         }
+        // Publicar o evento antes da mutação permite que FTB Chunks, OPAC e
+        // outros mods de proteção neguem a ação usando o mesmo contrato de
+        // quebra de um jogador real.
+        if (this.serverLevel() != null) {
+            BlockState state = this.level().getBlockState(pos);
+            BlockEvent.BreakEvent event = new BlockEvent.BreakEvent(this.level(), pos, state, this);
+            NeoForge.EVENT_BUS.post(event);
+            if (event.isCanceled()) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -123,6 +138,15 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
         if (this.serverLevel() != null && !this.serverLevel().mayInteract(this, pos)) {
             return false;
+        }
+        if (this.serverLevel() != null) {
+            BlockSnapshot snapshot = BlockSnapshot.create(this.level().dimension(), this.level(), pos);
+            BlockEvent.EntityPlaceEvent event = new BlockEvent.EntityPlaceEvent(
+                    snapshot, this.level().getBlockState(pos), this);
+            NeoForge.EVENT_BUS.post(event);
+            if (event.isCanceled()) {
+                return false;
+            }
         }
         return true;
     }
@@ -166,8 +190,11 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         ServerPlayer owner = this.server.getPlayerList().getPlayer(this.ownerUuid);
 
-        // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos)
-        pickupNearbyItems();
+        // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos).
+        // A busca de entidades e limitada a 4 Hz para evitar custo por NPC a cada tick.
+        if (this.tickCount % 5 == 0) {
+            pickupNearbyItems();
+        }
 
         // 3. Execucao de acordo com o modo atual
         switch (this.mode) {
@@ -352,7 +379,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             priorityTarget = owner.getLastHurtByMob();
         }
 
-        if (priorityTarget == null) {
+        if (priorityTarget == null && this.tickCount % 10 == 0) {
             AABB searchArea = this.getBoundingBox().inflate(12.0);
             List<Monster> monsters = this.level().getEntitiesOfClass(Monster.class, searchArea);
             if (!monsters.isEmpty()) {
@@ -385,6 +412,8 @@ public class CompanionServerPlayer extends ServerPlayer {
      */
     private void handleWoodMode(ServerPlayer owner) {
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
+            if (this.tickCount < nextWorkScanTick) return;
+            nextWorkScanTick = this.tickCount + 20L;
             targetWorkPos = findNearestLog();
             workBreakTicks = 0;
             if (targetWorkPos == null) {
@@ -466,6 +495,8 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     private void handleMineMode(ServerPlayer owner) {
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
+            if (this.tickCount < nextWorkScanTick) return;
+            nextWorkScanTick = this.tickCount + 20L;
             targetWorkPos = findNearestOre();
             workBreakTicks = 0;
             if (targetWorkPos == null) {
@@ -530,6 +561,8 @@ public class CompanionServerPlayer extends ServerPlayer {
      */
     private void handleFarmMode(ServerPlayer owner) {
         if (targetWorkPos == null) {
+            if (this.tickCount < nextWorkScanTick) return;
+            nextWorkScanTick = this.tickCount + 20L;
             targetWorkPos = findFarmTarget();
             workBreakTicks = 0;
             if (targetWorkPos == null) {
@@ -916,13 +949,18 @@ public class CompanionServerPlayer extends ServerPlayer {
             return;
         }
 
-        // 1. Verifica se ja tem o item pronto na bolsa
+        // 1. Entrega primeiro o que ja esta pronto, mantendo a quantidade pedida exata.
+        // Se so houver parte disponivel, a fabricacao continua apenas para o restante.
+        int remainingCount = count;
         int availableInBag = countItemInInventory(itemObj);
-        if (availableInBag >= count) {
-            ItemStack stack = withdrawItemFromInventory(itemObj, count);
-            deliverItemToOwner(owner, stack);
-            speakToOwner("Ja tinha " + count + " " + rawItemName + " prontos na bolsa! Entreguei para voce.");
-            return;
+        if (availableInBag > 0) {
+            int takenFromBag = Math.min(availableInBag, remainingCount);
+            deliverItemToOwner(owner, withdrawItemFromInventory(itemObj, takenFromBag));
+            remainingCount -= takenFromBag;
+            if (remainingCount == 0) {
+                speakToOwner("Ja tinha " + takenFromBag + " " + rawItemName + " prontos na bolsa e entreguei para voce.");
+                return;
+            }
         }
 
         // 2. Verifica no bau designado (respeitando protecao de claim)
@@ -931,19 +969,20 @@ public class CompanionServerPlayer extends ServerPlayer {
             if (!checkCanInteractBlock(chestPos)) {
                 speakToOwner("Nao tenho permissao para acessar o bau designado nesta area protegida!");
             } else if (this.level().getBlockEntity(chestPos) instanceof Container chest) {
-                int inChest = withdrawItemFromContainer(chest, itemObj, count);
+                int inChest = withdrawItemFromContainer(chest, itemObj, remainingCount);
                 if (inChest > 0) {
                     deliverItemToOwner(owner, new ItemStack(itemObj, inChest));
                     speakToOwner("Peguei " + inChest + " " + rawItemName + " do nosso bau designado e entreguei para voce!");
-                    if (inChest >= count) return;
+                    remainingCount -= inChest;
+                    if (remainingCount == 0) return;
                 }
             }
         }
 
         // 3. Calcula ingredientes necessarios para fabricacao
-        int logsNeeded = calculateLogsNeeded(targetItem, count);
-        int cobbleNeeded = calculateCobbleNeeded(targetItem, count);
-        int wheatNeeded = calculateWheatNeeded(targetItem, count);
+        int logsNeeded = calculateLogsNeeded(targetItem, remainingCount);
+        int cobbleNeeded = calculateCobbleNeeded(targetItem, remainingCount);
+        int wheatNeeded = calculateWheatNeeded(targetItem, remainingCount);
 
         // Se faltar na bolsa, tenta retirar ingredientes do bau designado
         if (chestPos != null && checkCanInteractBlock(chestPos) && this.level().getBlockEntity(chestPos) instanceof Container chest) {
@@ -967,26 +1006,26 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         if (!hasWood) {
             this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = count;
+            this.pendingCraftCount = remainingCount;
             setMode(CompanionMode.WOOD);
             speakToOwner("Falta madeira (" + countLogsInInventory() + "/" + logsNeeded + " troncos). Vou coletar na floresta agora para fabricar seu " + rawItemName + "!");
             return;
         } else if (!hasStone) {
             this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = count;
+            this.pendingCraftCount = remainingCount;
             setMode(CompanionMode.MINE);
             speakToOwner("Falta pedra (" + countCobbleInInventory() + "/" + cobbleNeeded + " pedras). Vou minerar agora para fabricar seu " + rawItemName + "!");
             return;
         } else if (!hasWheat) {
             this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = count;
+            this.pendingCraftCount = remainingCount;
             setMode(CompanionMode.FARM);
             speakToOwner("Falta trigo (" + countWheatInInventory() + "/" + wheatNeeded + " trigos). Vou cultivar na fazenda agora para fabricar seu " + rawItemName + "!");
             return;
         }
 
         // 4. Se os materiais estao disponiveis, fabrica atomicamente
-        craftAndDeliver(owner, targetItem, count);
+        craftAndDeliver(owner, targetItem, remainingCount);
     }
 
     private boolean checkPendingCraftFulfillment(ServerPlayer owner) {

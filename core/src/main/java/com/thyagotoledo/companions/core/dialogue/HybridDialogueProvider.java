@@ -2,19 +2,15 @@ package com.thyagotoledo.companions.core.dialogue;
 
 import com.thyagotoledo.companions.core.ai.ConversationMemory;
 import com.thyagotoledo.companions.core.ai.InferenceClient;
+import com.thyagotoledo.companions.core.ai.OpenAiResponseParser;
 import com.thyagotoledo.companions.core.locale.LocaleService;
 import com.thyagotoledo.companions.core.model.CompanionProfile;
 import com.thyagotoledo.companions.core.model.InventorySnapshot;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class HybridDialogueProvider {
-    private static final Pattern INTENT_PATTERN = Pattern.compile("\"intent\"\\s*:\\s*\"([A-Z_]+)\"");
-    private static final Pattern SPEECH_PATTERN = Pattern.compile("\"speech\"\\s*:\\s*\"([^\"]+)\"");
-
     private final DeterministicDialogueProvider deterministicProvider;
     private final InferenceClient inferenceClient;
     private final ConversationMemory memory;
@@ -101,23 +97,6 @@ public class HybridDialogueProvider {
             return fallback;
         }
 
-        Matcher intentMatcher = INTENT_PATTERN.matcher(rawJson);
-        Matcher speechMatcher = SPEECH_PATTERN.matcher(rawJson);
-
-        if (intentMatcher.find() && speechMatcher.find()) {
-            String intentStr = intentMatcher.group(1);
-            String speech = speechMatcher.group(1);
-
-            IntentType type;
-            try {
-                type = IntentType.valueOf(intentStr);
-            } catch (IllegalArgumentException e) {
-                type = IntentType.CASUAL_CHAT;
-            }
-
-            return new DialogueResponse(locale, speech, new Intent(type));
-        }
-
-        return fallback;
+        return OpenAiResponseParser.parse(rawJson, locale, fallback);
     }
 }

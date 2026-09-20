@@ -51,6 +51,8 @@ public class LegacyCompanionEntity {
         if (dialogueProvider == null) {
             return null;
         }
+        // Compatibilidade de API síncrona; o legado permanece com IA generativa
+        // desligada por padrão e não chama este método no tick do servidor.
         return dialogueProvider.processSync(rawCommand, preferredLocale, profile, inventory, 1500L);
     }
 

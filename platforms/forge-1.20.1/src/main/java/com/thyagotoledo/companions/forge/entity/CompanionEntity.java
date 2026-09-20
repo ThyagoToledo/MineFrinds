@@ -45,7 +45,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import com.thyagotoledo.companions.core.ai.ConversationMemory;
-import com.thyagotoledo.companions.core.ai.HttpInferenceClient;
+import com.thyagotoledo.companions.core.ai.InferenceSupervisor;
 import com.thyagotoledo.companions.core.dialogue.HybridDialogueProvider;
 import com.thyagotoledo.companions.core.planner.RecipeCatalog;
 import com.thyagotoledo.companions.core.quest.Quest;
@@ -59,6 +59,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CompanionEntity extends TamableAnimal {
+    private static final InferenceSupervisor INFERENCE_SUPERVISOR = new InferenceSupervisor(
+            Boolean.parseBoolean(System.getProperty("companions.ai.enabled", "false")),
+            System.getProperty("companions.ai.endpoint", "http://127.0.0.1:8080/v1/chat/completions"),
+            1500,
+            8
+    );
     private final SimpleContainer inventory = new SimpleContainer(27);
     private CompanionMode mode = CompanionMode.FOLLOW;
     private String preferredLocale = LocaleService.PT_BR;
@@ -67,7 +73,7 @@ public class CompanionEntity extends TamableAnimal {
     private final ConversationMemory conversationMemory = new ConversationMemory(6);
     private final HybridDialogueProvider hybridDialogueProvider = new HybridDialogueProvider(
             dialogueProvider,
-            new HttpInferenceClient(),
+            INFERENCE_SUPERVISOR,
             conversationMemory,
             localeService
     );
@@ -76,6 +82,10 @@ public class CompanionEntity extends TamableAnimal {
     private final QuestPlanner questPlanner = new QuestPlanner(questService, recipeCatalog);
     private long lastRecallGameTime = -100L;
     private WorkTask activeWorkTask = null;
+
+    public static void shutdownInference() {
+        INFERENCE_SUPERVISOR.shutdown();
+    }
 
     public CompanionEntity(EntityType<? extends TamableAnimal> entityType, Level level) {
         super(entityType, level);
@@ -380,6 +390,10 @@ public class CompanionEntity extends TamableAnimal {
     }
 
     public void handleCommand(String command, Player sender) {
+        handleCommandAsync(command, sender);
+    }
+
+    public void handleCommandAsync(String command, Player sender) {
         if (command == null || command.trim().isEmpty() || !this.isOwnedBy(sender)) return;
 
         CompanionProfile coreProfile = new CompanionProfile(
@@ -390,7 +404,19 @@ public class CompanionEntity extends TamableAnimal {
                 Personality.BALANCED
         );
 
-        var response = this.hybridDialogueProvider.processSync(command, this.preferredLocale, coreProfile, createInventorySnapshot(), 1500L);
+        this.hybridDialogueProvider.processAsync(command, this.preferredLocale, coreProfile, createInventorySnapshot())
+                .thenAccept(response -> {
+                    Runnable apply = () -> applyDialogueResponse(response, sender);
+                    if (sender.getServer() != null) {
+                        sender.getServer().execute(apply);
+                    } else {
+                        apply.run();
+                    }
+                });
+    }
+
+    private void applyDialogueResponse(com.thyagotoledo.companions.core.dialogue.DialogueResponse response, Player sender) {
+        if (response == null || response.getIntent() == null) return;
         var intent = response.getIntent();
 
         switch (intent.getType()) {
