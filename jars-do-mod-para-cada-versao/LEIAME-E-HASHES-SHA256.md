@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Mineracao Realista com Escadas, Tuneis 1x2 e Cavernas, Filtro de Prioridades e Expansao Agricola com Arado e Enxada | 254.298 bytes | `9D5C1F8AC998BC330C9C497EEFCBF78BFA445002DAF3B4BF0A2F248DD0689026` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com mineracao realista, agricultura com arado e integracao Tensura completa | 254.341 bytes | `5F608D916DB0947DA4EBD4F0AAE327F5A588DA8B86C4EFC262A11E6CFA6D4004` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Mineracao Realista com Vein Miner em Cascata, Escadas, Tuneis 1x2 e Cavernas, Filtro de Prioridades e Expansao Agricola com Arado | 254.298 bytes | `519FD22D82C1A95A9438084B398B7C02D07B6C69A5136F5FE12DBF8DB0EEFFDD` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com Vein Miner em cascata, mineracao realista, agricultura com arado e integracao Tensura completa | 254.341 bytes | `74661C4D8B32AB4178462068B0F801EE0600871599D334DCC251F3A4937616EB` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 

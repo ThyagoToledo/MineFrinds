@@ -1067,7 +1067,8 @@ public class CompanionServerPlayer extends ServerPlayer {
                     harvestedCount++;
 
                     if (wasOre) {
-                        targetVeinPos = brokenPos;
+                        mineVeinCascade(brokenPos, miningState);
+                        targetVeinPos = null;
                     }
                 }
 
@@ -1079,6 +1080,89 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
             }
         }
+    }
+
+    /**
+     * Vein Miner: escavacao em cascata de veios de minerios contiguos (estilo FTB Ultimine / Ore Excavation).
+     * Quebra todos os blocos conectados do mesmo tipo de minerio com drops normais e consumo de durabilidade.
+     */
+    private void mineVeinCascade(BlockPos originPos, BlockState originState) {
+        if (originPos == null || originState == null) return;
+
+        java.util.Queue<BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.Set<BlockPos> visited = new java.util.HashSet<>();
+
+        queue.add(originPos);
+        visited.add(originPos);
+
+        int minedCount = 0;
+        int maxVeinBlocks = 48;
+
+        while (!queue.isEmpty() && minedCount < maxVeinBlocks) {
+            BlockPos current = queue.poll();
+
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        BlockPos neighbor = current.offset(dx, dy, dz);
+
+                        if (neighbor.equals(blockPosition().below())) continue;
+                        if (!visited.add(neighbor)) continue;
+
+                        if (!level().hasChunkAt(neighbor)) continue;
+
+                        BlockState state = level().getBlockState(neighbor);
+                        if (state.isAir()) continue;
+
+                        if (isMatchingVeinOre(originState, state)) {
+                            boolean nearLava = false;
+                            for (Direction dir : Direction.values()) {
+                                if (level().getBlockState(neighbor.relative(dir)).is(Blocks.LAVA)) {
+                                    nearLava = true;
+                                    break;
+                                }
+                            }
+                            if (nearLava) continue;
+
+                            if (!hasCorrectToolForDrops(state)) {
+                                equipForBlock(state);
+                                if (!hasCorrectToolForDrops(state)) break;
+                            }
+
+                            if (!canUsePlayerBreak(neighbor)) continue;
+
+                            if (this.gameMode.destroyBlock(neighbor)) {
+                                requestDropCollection(neighbor);
+                                harvestedCount++;
+                                minedCount++;
+                                queue.add(neighbor);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (minedCount > 0) {
+            requestDropCollection(originPos);
+            this.swing(InteractionHand.MAIN_HAND, true);
+        }
+    }
+
+    private boolean isMatchingVeinOre(BlockState originState, BlockState candidateState) {
+        if (originState == null || candidateState == null) return false;
+        if (candidateState.is(originState.getBlock())) return true;
+
+        String originDesc = originState.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
+        String candidateDesc = candidateState.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
+
+        for (String oreKeyword : new String[]{"diamond", "iron", "coal", "gold", "redstone", "lapis", "copper", "emerald", "debris", "nether_gold", "quartz"}) {
+            if (originDesc.contains(oreKeyword) && candidateDesc.contains(oreKeyword)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isInCave() {
