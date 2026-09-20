@@ -16,10 +16,9 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Skin Rimuru Demon Lord, Visao Remota Bifurcada, Combate Prioritario e Mineracao Cone FOV | 245.523 bytes | `7824DD9C775314136791046165EC84BE2711AF96260725927D7BA81CE838F911` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com adaptacoes completas | 245.566 bytes | `0883290224ED30D91E62F38D8ABE69A30450CD0750DF6D24ED1214FDCBE3D2DD` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
-| `companions-neoforge-1.21.1-0.1.0.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / ServerPlayer Fake, LAN, Abas, Skins e IA | 177.062 bytes | `0251F135529FF2E992AD529054D24B1568ABD5EAC4D6D7688C59D9210894E4FC` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar` | NeoForge 21.1.244+ | 1.21.1 | Adaptada Tensura / ServerPlayer Fake, LAN, Abas, Skins e IA | 177.105 bytes | `A1D3658B4E084B7AA73B69F131B7A69DE62A9B408409A10CB2D93F025A9ECE0A` |
-
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 
 ---
@@ -30,17 +29,21 @@ Para facilitar a localizacao e a integracao com inicializadores e launchers, os 
 
 ```text
 jars-do-mod-para-cada-versao/
+|-- companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar
+|-- companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar
 |-- companions-forge-1.20.1-0.1.0.jar
-|-- companions-neoforge-1.21.1-0.1.0.jar
-|-- companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar
 |-- companions-forge-1.12.2-0.1.0.jar
 |-- LEIAME-E-HASHES-SHA256.md
+|-- neoforge-1.21.1-padrao/
+|   `-- companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar
+|-- neoforge-1.21.1-tensura-neo-otherworld/
+|   `-- companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar
+|-- release-candidates/
+|   `-- 0.2.0-alpha.2/
+|       |-- companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar
+|       `-- companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar
 |-- forge-1.20.1/
 |   `-- companions-forge-1.20.1-0.1.0.jar
-|-- neoforge-1.21.1-padrao/
-|   `-- companions-neoforge-1.21.1-0.1.0.jar
-|-- neoforge-1.21.1-tensura-neo-otherworld/
-|   `-- companions-neoforge-1.21.1-tensura-neo-otherworld-0.1.0.jar
 `-- forge-1.12.2/
     `-- companions-forge-1.12.2-0.1.0.jar
 ```

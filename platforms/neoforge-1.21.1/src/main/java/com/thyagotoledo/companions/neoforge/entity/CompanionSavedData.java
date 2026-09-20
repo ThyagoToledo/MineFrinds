@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class CompanionSavedData extends SavedData {
 
     public static final String DATA_NAME = "companions_data";
-    public static final int CURRENT_SCHEMA_VERSION = 1;
+    public static final int CURRENT_SCHEMA_VERSION = 2;
 
     public static final SavedData.Factory<CompanionSavedData> FACTORY = new SavedData.Factory<>(
             CompanionSavedData::new,
@@ -64,6 +64,7 @@ public class CompanionSavedData extends SavedData {
 
     private final Map<UUID, BlockPos> designatedChests = new ConcurrentHashMap<>();
     private final Map<UUID, CompanionStateRecord> companionRecords = new ConcurrentHashMap<>();
+    private final Map<UUID, CompoundTag> equipmentRecords = new ConcurrentHashMap<>();
 
     public CompanionSavedData() {
     }
@@ -117,6 +118,11 @@ public class CompanionSavedData extends SavedData {
             }
         }
 
+        CompoundTag equipment = tag.getCompound("Equipment");
+        for (String key : equipment.getAllKeys()) {
+            try { data.equipmentRecords.put(UUID.fromString(key), equipment.getCompound(key).copy()); }
+            catch (IllegalArgumentException ignored) { }
+        }
         return data;
     }
 
@@ -153,6 +159,9 @@ public class CompanionSavedData extends SavedData {
             }
         }
         tag.put("Companions", companionsTag);
+        CompoundTag equipment = new CompoundTag();
+        equipmentRecords.forEach((owner, items) -> equipment.put(owner.toString(), items.copy()));
+        tag.put("Equipment", equipment);
 
         return tag;
     }
@@ -181,6 +190,16 @@ public class CompanionSavedData extends SavedData {
     public CompanionStateRecord getCompanionRecord(UUID ownerUuid) {
         if (ownerUuid == null) return null;
         return companionRecords.get(ownerUuid);
+    }
+
+    public void saveEquipment(UUID ownerUuid, CompoundTag equipment) {
+        equipmentRecords.put(ownerUuid, equipment.copy());
+        setDirty();
+    }
+
+    public CompoundTag getEquipment(UUID ownerUuid) {
+        CompoundTag equipment = equipmentRecords.get(ownerUuid);
+        return equipment == null ? null : equipment.copy();
     }
 
     public Map<UUID, BlockPos> getAllDesignatedChests() {

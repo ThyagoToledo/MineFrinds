@@ -7,17 +7,17 @@ import com.thyagotoledo.companions.core.model.InventorySnapshot;
 import java.util.regex.Pattern;
 
 public final class DeterministicDialogueProvider {
-    private static final Pattern PATTERN_FOLLOW_PT = Pattern.compile(".*(me\\s*segue|vem\\s*comigo|anda\\s*comigo|me\\s*acompanha).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_FOLLOW_EN = Pattern.compile(".*(follow\\s*me|walk\\s*with\\s*me).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_FOLLOW_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(me\\s*segue|vem\\s*comigo|anda\\s*comigo|me\\s*acompanha)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_FOLLOW_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(follow\\s*me|walk\\s*with\\s*me)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern PATTERN_STAY_PT = Pattern.compile(".*(fica\\s*aqui|espera|para|fica\\s*parado|senta).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_STAY_EN = Pattern.compile(".*(stay\\s*here|wait|stop|sit).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_STAY_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(fica\\s*aqui|espera|para|fica\\s*parado|senta)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_STAY_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(stay\\s*here|wait|stop|sit)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern PATTERN_DEFEND_PT = Pattern.compile(".*(defenda|proteja|protege|fique\\s*atento|guarda).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_DEFEND_EN = Pattern.compile(".*(defend|protect|guard|watch\\s*out).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_DEFEND_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(defenda|proteja|protege|fique\\s*atento|guarda)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_DEFEND_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(defend|protect|guard|watch\\s*out)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern PATTERN_RECALL_PT = Pattern.compile(".*(vem\\s*c[aá]|venha\\s*aqui|vem\\s*aqui|puxar|me\\s*alcance|chamar).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_RECALL_EN = Pattern.compile(".*(come\\s*here|come\\s*to\\s*me|recall|pull\\s*near).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_RECALL_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(vem\\s*c[aá]|venha\\s*aqui|vem\\s*aqui|puxar|me\\s*alcance|chamar)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_RECALL_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(come\\s*here|come\\s*to\\s*me|recall|pull\\s*near)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern PATTERN_VIEW_PT = Pattern.compile(".*(vis[aã]o|olhar|olhe|ver\\s*pelos\\s*olhos|c[aâ]mera).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_VIEW_EN = Pattern.compile(".*(view|remote\\s*view|scout|look\\s*through|camera).*", Pattern.CASE_INSENSITIVE);
@@ -34,11 +34,11 @@ public final class DeterministicDialogueProvider {
     private static final Pattern PATTERN_NAME_GIVING_PT = Pattern.compile(".*(nomear|dar\\s*nome|batizar|conceder\\s*nome).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_NAME_GIVING_EN = Pattern.compile(".*(name\\s*companion|give\\s*name|bestow\\s*name|naming).*", Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern PATTERN_WOOD_PT = Pattern.compile(".*(pega\\s*madeira|corta\\s*madeira|coleta\\s*madeira).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_WOOD_EN = Pattern.compile(".*(chop\\s*wood|gather\\s*wood|get\\s*wood|cut\\s*trees).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_WOOD_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(pega\\s*madeira|corta\\s*madeira|coleta\\s*madeira)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_WOOD_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(chop\\s*wood|gather\\s*wood|get\\s*wood|cut\\s*trees)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
-    private static final Pattern PATTERN_DEPOSIT_PT = Pattern.compile(".*(guarda\\s*os\\s*itens|deposita|descarrega|guardar\\s*ba[uú]).*", Pattern.CASE_INSENSITIVE);
-    private static final Pattern PATTERN_DEPOSIT_EN = Pattern.compile(".*(deposit|store\\s*items|put\\s*in\\s*chest).*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_DEPOSIT_PT = Pattern.compile("(?:(?:please|por favor)\\s+)?(guarda\\s*os\\s*itens|deposita|descarrega|guardar\\s*ba[uú])(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_DEPOSIT_EN = Pattern.compile("(?:(?:please|por favor)\\s+)?(deposit|store\\s*items|put\\s*in\\s*chest)(?:\\s+(?:please|por favor|agora|now|amigo))?[.!]?", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern PATTERN_QUEST_PT = Pattern.compile(".*(ajuda\\s*com\\s*(a\\s*)?quest|miss[aã]o|o\\s*que\\s*falta).*", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_QUEST_EN = Pattern.compile(".*(help\\s*with\\s*quest|quest\\s*help|what\\s*is\\s*missing).*", Pattern.CASE_INSENSITIVE);

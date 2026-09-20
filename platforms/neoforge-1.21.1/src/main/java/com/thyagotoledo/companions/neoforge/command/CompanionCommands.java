@@ -29,7 +29,7 @@ import java.util.Locale;
 /**
  * Arvore completa de comandos e manipulador de eventos de chat para o mod Companions:
  * - /companion spawn, /companion lan, /companion recall, /companion dismiss
- * - /companion mode <follow|stay|defend>, /companion action <wood|mine>
+ * - /companion mode <follow|stay|defend|auto>, /companion action <wood|mine>
  * - /companion inventory, /companion deposit, /companion view
  * - /companion skin <nome>, /skin <nome>
  * - /companion tensura <status|name>
@@ -55,6 +55,10 @@ public class CompanionCommands {
                             sendHelpMessage(ctx.getSource());
                             return 1;
                         })
+                        .then(Commands.literal("ai").executes(ctx -> {
+                            ctx.getSource().sendSuccess(() -> Component.literal(CompanionManager.inferenceStatus()), false);
+                            return 1;
+                        }))
                         .then(Commands.literal("help")
                                 .executes(ctx -> {
                                     sendHelpMessage(ctx.getSource());
@@ -86,6 +90,7 @@ public class CompanionCommands {
                                 .executes(ctx -> executeDismiss(ctx.getSource()))
                         )
                         .then(Commands.literal("mode")
+                                .then(Commands.literal("auto").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WORK)))
                                 .then(Commands.literal("follow").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.FOLLOW)))
                                 .then(Commands.literal("stay").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.STAY)))
                                 .then(Commands.literal("defend").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.DEFEND)))
@@ -116,6 +121,9 @@ public class CompanionCommands {
                                 )
                         )
                         .then(Commands.literal("view")
+                                .then(Commands.literal("observe").executes(ctx -> com.thyagotoledo.companions.neoforge.service.RemoteViewService.start(ctx.getSource().getPlayer(), false) ? 1 : 0))
+                                .then(Commands.literal("control").executes(ctx -> com.thyagotoledo.companions.neoforge.service.RemoteViewService.start(ctx.getSource().getPlayer(), true) ? 1 : 0))
+                                .then(Commands.literal("exit").executes(ctx -> com.thyagotoledo.companions.neoforge.service.RemoteViewService.stop(ctx.getSource().getPlayer()) ? 1 : 0))
                                 .executes(ctx -> executeView(ctx.getSource()))
                         )
                         .then(Commands.literal("chat")
@@ -246,6 +254,7 @@ public class CompanionCommands {
             case WOOD -> "Coleta de madeira nas proximidades";
             case MINE -> "Mineracao de minerios nas proximidades";
             case FARM -> "Agricultura e colheita nas plantacoes";
+            case WORK -> "Sobrevivencia automatica basica / Basic automatic survival";
             default -> mode.name();
         };
 
@@ -327,23 +336,13 @@ public class CompanionCommands {
     }
 
     private static int executeView(CommandSourceStack source) {
-        ServerPlayer player = source.getPlayer();
-        if (player == null) return 0;
-
-        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
-        if (companion == null) {
-            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+        ServerPlayer owner = source.getPlayer();
+        if (com.thyagotoledo.companions.neoforge.service.RemoteViewService.stop(owner)) return 1;
+        if (!com.thyagotoledo.companions.neoforge.service.RemoteViewService.start(owner, false)) {
+            source.sendFailure(Component.literal("Companheiro indisponivel / Companion unavailable."));
             return 0;
         }
-
-        if (player.getCamera() == companion) {
-            player.setCamera(player);
-            source.sendSuccess(() -> Component.literal("Voce retornou para a sua propria visao de camera."), false);
-            return 1;
-        }
-
-        player.setCamera(companion);
-        source.sendSuccess(() -> Component.literal("Visualizando pelos olhos de " + companion.getName().getString() + ". Digite /companion view novamente ou agache (Shift) para sair."), false);
+        source.sendSuccess(() -> Component.literal("Observando. Shift sai; /companion view control assume o controle."), false);
         return 1;
     }
 
@@ -447,98 +446,106 @@ public class CompanionCommands {
     }
 
     private static boolean processDirectOrder(ServerPlayer player, CompanionServerPlayer companion, String rawText) {
-        String lower = rawText.toLowerCase(Locale.ROOT);
+        String lower = rawText.toLowerCase(Locale.ROOT).trim()
+                .replaceFirst("^(?:por favor|please)\\s+", "")
+                .replaceFirst("\\s+(?:por favor|please|agora|now|amigo)[.!]?$", "")
+                .replaceFirst("[.!]+$", "");
+        if (lower.equals("auto") || lower.equals("jogue sozinho")) {
+            companion.setMode(CompanionMode.WORK);
+            companion.speakToOwner("Modo automatico basico / Basic automatic mode. Use stay para parar.");
+            return true;
+        }
 
-        if (lower.contains("me segue") || lower.contains("vem comigo") || lower.equals("follow") || lower.equals("seguir")) {
+        if (lower.equals("follow me") || lower.equals("me segue") || lower.equals("vem comigo") || lower.equals("follow") || lower.equals("seguir")) {
             companion.setMode(CompanionMode.FOLLOW);
             companion.speakToOwner("Entendido! Estou te seguindo.");
             return true;
         }
 
-        if (lower.contains("fica aqui") || lower.contains("espera") || lower.equals("stay") || lower.equals("parar")) {
+        if (lower.equals("stay here") || lower.equals("fica aqui") || lower.equals("espera") || lower.equals("stay") || lower.equals("parar")) {
             companion.setMode(CompanionMode.STAY);
             companion.speakToOwner("Certo! Vou aguardar aqui nesta posicao.");
             return true;
         }
 
-        if (lower.contains("defenda") || lower.contains("proteja") || lower.equals("defend") || lower.contains("guarda")) {
+        if (lower.equals("defenda") || lower.equals("proteja") || lower.equals("defend") || lower.equals("guarda")) {
             companion.setMode(CompanionMode.DEFEND);
             companion.speakToOwner("Postura de combate ativada! Vou te proteger de monstros.");
             return true;
         }
 
-        if (lower.contains("pega madeira") || lower.contains("corta madeira") || lower.contains("coleta madeira") || lower.equals("wood")) {
+        if (lower.equals("pega madeira") || lower.equals("corta madeira") || lower.equals("coleta madeira") || lower.equals("wood") || lower.equals("gather wood")) {
             companion.setMode(CompanionMode.WOOD);
             companion.speakToOwner("Iniciando coleta de madeira nas proximidades!");
             return true;
         }
 
-        if (lower.contains("minerar") || lower.contains("pega minerio") || lower.equals("mine") || lower.contains("mina")) {
+        if (lower.equals("minerar") || lower.equals("pega minerio") || lower.equals("mine") || lower.equals("mina")) {
             companion.setMode(CompanionMode.MINE);
             companion.speakToOwner("Iniciando mineracao de minerios proximos!");
             return true;
         }
 
-        if (lower.contains("plantar") || lower.contains("colher") || lower.contains("fazenda") || lower.equals("farm") || lower.contains("agricultura")) {
+        if (lower.equals("plantar") || lower.equals("colher") || lower.equals("fazenda") || lower.equals("farm") || lower.equals("agricultura")) {
             companion.setMode(CompanionMode.FARM);
             companion.speakToOwner("Iniciando trabalho de agricultura! Vou colher safras maduras e replantar sementes.");
             return true;
         }
 
-        if (lower.contains("marcar bau") || lower.contains("este e o bau") || lower.contains("salvar bau") || lower.contains("definir bau")) {
+        if (lower.equals("marcar bau") || lower.equals("este e o bau") || lower.equals("salvar bau") || lower.equals("definir bau")) {
             executeChest(player.createCommandSourceStack());
             return true;
         }
 
-        if (lower.startsWith("fabrica ") || lower.startsWith("fabricar ") || lower.startsWith("faz uma ") || lower.startsWith("faz um ") || lower.startsWith("faz ")) {
-            String item = rawText.replaceFirst("(?i)^(fabrica|fabricar|faz uma|faz um|faz)\\s+", "").trim();
+        if (lower.startsWith("craft ") || lower.startsWith("fabrica ") || lower.startsWith("fabricar ") || lower.startsWith("faz uma ") || lower.startsWith("faz um ") || lower.startsWith("faz ")) {
+            String item = rawText.replaceFirst("(?i)^(craft|fabrica|fabricar|faz uma|faz um|faz)\\s+", "").trim();
             if (!item.isEmpty()) {
                 companion.executeAutonomousCraft(player, item, 1);
                 return true;
             }
         }
 
-        if (lower.contains("sair da camera") || lower.contains("minha visao") || lower.contains("voltar visao")) {
-            player.setCamera(player);
-            companion.speakToOwner("Restaurando visao de camera para o seu jogador.");
+        if (lower.equals("sair da camera") || lower.equals("minha visao") || lower.equals("voltar visao")) {
+            com.thyagotoledo.companions.neoforge.service.RemoteViewService.stop(player);
+            companion.speakToOwner("Retornando ao seu local / Returning to your position.");
             return true;
         }
 
-        if (lower.contains("vem ca") || lower.contains("venha aqui") || lower.equals("recall")) {
+        if (lower.equals("vem ca") || lower.equals("venha aqui") || lower.equals("recall")) {
             companion.recallToOwner();
             companion.speakToOwner("Ja cheguei ao seu lado!");
             return true;
         }
 
-        if (lower.contains("guardar") || lower.contains("deposito") || lower.contains("bau")) {
+        if (lower.equals("guardar") || lower.equals("deposito") || lower.equals("bau")) {
             companion.depositToNearbyChest();
             return true;
         }
 
-        if (lower.contains("inventario") || lower.contains("mochila") || lower.contains("bolsa")) {
+        if (lower.equals("inventario") || lower.equals("mochila") || lower.equals("bolsa")) {
             companion.openCompanionInventory(player);
             return true;
         }
 
-        if (lower.contains("visao") || lower.contains("olhar") || lower.contains("camera")) {
-            if (player.getCamera() == companion) {
-                player.setCamera(player);
-                companion.speakToOwner("Restaurando visao de camera para o seu jogador.");
-            } else {
-                player.setCamera(companion);
-                companion.speakToOwner("Conectado a visao remota. Digite /companion view novamente ou agache para sair.");
-            }
+        if (lower.equals("visao") || lower.equals("olhar") || lower.equals("camera")) {
+            executeView(player.createCommandSourceStack());
             return true;
         }
 
         // Se o jogador estiver conversando diretamente
-        if (lower.startsWith("ei ") || lower.startsWith("companheiro") || lower.endsWith("?")) {
+        if (!rawText.trim().isEmpty()) {
             NeoForgeCompanionEntity dataEntity = companion.getDataEntity();
             if (dataEntity != null && dataEntity.getDialogueProvider() != null) {
-                dataEntity.handleCommandAsync(rawText, "pt_br")
+                dataEntity.handleCommandAsync(rawText, player.clientInformation().language())
                         .thenAccept(response -> {
                             if (response != null && response.getSpeech() != null && player.getServer() != null) {
-                                player.getServer().execute(() -> companion.speakToOwner(response.getSpeech()));
+                                player.getServer().execute(() -> {
+                                    if (player.isAlive() && companion.isAlive()
+                                            && player.level() == companion.level()
+                                            && CompanionManager.getPlayerCompanion(player.getUUID()) == companion) {
+                                        companion.speakToOwner(response.getSpeech());
+                                    }
+                                });
                             }
                         });
                 return true;
@@ -557,10 +564,10 @@ public class CompanionCommands {
         source.sendSuccess(() -> Component.literal("Comandos de Acao e Modos:"), false);
         source.sendSuccess(() -> createClickableCommand("/companion spawn [nome]", "Invoca o companheiro como jogador oficial no servidor", "/companion spawn "), false);
         source.sendSuccess(() -> createClickableCommand("/companion lan [nome]", "Abre o mundo para LAN e invoca o companheiro", "/companion lan "), false);
-        source.sendSuccess(() -> createClickableCommand("/companion mode <follow|stay|defend>", "Altera o comportamento do companheiro", "/companion mode "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion mode <follow|stay|defend|auto>", "Altera o comportamento do companheiro", "/companion mode "), false);
         source.sendSuccess(() -> createClickableCommand("/companion action <wood|mine|farm>", "Ordena corte de madeira, mineracao ou colheita/plantio", "/companion action "), false);
         source.sendSuccess(() -> createClickableCommand("/companion chest", "Define o bau proximo como estoque e deposito principal", "/companion chest"), false);
-        source.sendSuccess(() -> createClickableCommand("/companion craft <item> [qtd]", "Fabrica itens autonomamente (coleta na floresta/mina se faltar)", "/companion craft "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion craft <item> [qtd]", "Fabrica com receitas da mochila e bancada proxima; tenta novamente por 60 segundos", "/companion craft "), false);
         source.sendSuccess(() -> createClickableCommand("/companion inventory", "Abre o inventario completo com armaduras e mochila", "/companion inventory"), false);
         source.sendSuccess(() -> createClickableCommand("/companion deposit", "Guarda itens coletados no bau designado ou proximo", "/companion deposit"), false);
         source.sendSuccess(() -> createClickableCommand("/companion view", "Alterna visao remota da camera do companheiro", "/companion view"), false);

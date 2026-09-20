@@ -22,6 +22,15 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
  */
 public class CompanionsClientEvents {
 
+    @SubscribeEvent
+    public static void onPlayerRender(net.neoforged.neoforge.client.event.RenderPlayerEvent.Pre event) {
+        com.thyagotoledo.companions.neoforge.client.skin.CompanionPresetRenderer.render(event);
+    }
+
+    public static void onAddLayers(net.neoforged.neoforge.client.event.EntityRenderersEvent.AddLayers event) {
+        com.thyagotoledo.companions.neoforge.client.skin.CompanionPresetRenderer.create(event);
+    }
+
     public static void onRegisterKeyMappings(RegisterKeyMappingsEvent event) {
         event.register(CompanionsKeyMappings.KEY_OPEN_GUI);
     }
@@ -63,6 +72,7 @@ public class CompanionsClientEvents {
      */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
+        RemoteViewClient.tick();
         while (CompanionsKeyMappings.KEY_OPEN_GUI.consumeClick()) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player != null && mc.screen == null) {
@@ -72,8 +82,49 @@ public class CompanionsClientEvents {
     }
 
     @SubscribeEvent
+    public static void remoteInputBeforeTick(ClientTickEvent.Pre event) { RemoteViewClient.beforeTick(); }
+
+    @SubscribeEvent
+    public static void remoteScroll(net.neoforged.neoforge.client.event.InputEvent.MouseScrollingEvent event) {
+        if (RemoteViewClient.active()) { RemoteViewClient.scroll(event.getScrollDeltaY()); event.setCanceled(true); }
+    }
+
+    @SubscribeEvent
+    public static void remoteOverlay(net.neoforged.neoforge.client.event.RenderGuiEvent.Post event) {
+        if (!RemoteViewClient.active()) return;
+        var mc = Minecraft.getInstance();
+        var graphics = event.getGuiGraphics();
+        graphics.drawString(mc.font, RemoteViewClient.label(), 8, 8, 0xFFFFFF, true);
+        if (mc.getCameraEntity() instanceof net.minecraft.world.entity.LivingEntity npc) {
+            int x = 8;
+            for (var slot : new net.minecraft.world.entity.EquipmentSlot[]{net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+                    net.minecraft.world.entity.EquipmentSlot.OFFHAND, net.minecraft.world.entity.EquipmentSlot.HEAD,
+                    net.minecraft.world.entity.EquipmentSlot.CHEST, net.minecraft.world.entity.EquipmentSlot.LEGS,
+                    net.minecraft.world.entity.EquipmentSlot.FEET}) {
+                graphics.renderItem(npc.getItemBySlot(slot), x, 24); x += 20;
+            }
+            graphics.drawString(mc.font, "HP " + Math.round(npc.getHealth()) + "/" + Math.round(npc.getMaxHealth()), x + 4, 28, 0xFFFFFF, true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onMovement(net.neoforged.neoforge.client.event.MovementInputUpdateEvent event) {
+        if (!RemoteViewClient.active()) return;
+        event.getInput().forwardImpulse = 0;
+        event.getInput().leftImpulse = 0;
+        event.getInput().jumping = false;
+        event.getInput().shiftKeyDown = false;
+    }
+
+    @SubscribeEvent
+    public static void onInteraction(net.neoforged.neoforge.client.event.InputEvent.InteractionKeyMappingTriggered event) {
+        if (RemoteViewClient.active()) { event.setCanceled(true); event.setSwingHand(false); }
+    }
+
+    @SubscribeEvent
     public static void onClientLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
         CompanionScreen.clearSessionState();
+        RemoteViewClient.clear();
     }
 
     /**

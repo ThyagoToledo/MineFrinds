@@ -5,12 +5,12 @@
 # MineFriends
 
 <p align="center">
-  <a href="https://github.com/ThyagoToledo/MineFrinds"><img src="https://img.shields.io/badge/MineFriends-v0.1.0-00b4d8?style=for-the-badge" alt="MineFriends Version" /></a>
+  <a href="https://github.com/ThyagoToledo/MineFrinds"><img src="https://img.shields.io/badge/MineFriends-v0.2.0--alpha.2-00b4d8?style=for-the-badge" alt="MineFriends Version" /></a>
   <a href="https://openjdk.org/"><img src="https://img.shields.io/badge/Java-21%20%2F%2017%20%2F%208-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java" /></a>
   <a href="https://files.minecraftforge.net/"><img src="https://img.shields.io/badge/Forge-1.20.1%20%7C%201.12.2-DFAD32?style=for-the-badge&logo=curseforge&logoColor=black" alt="Minecraft Forge" /></a>
   <a href="https://neoforged.net/"><img src="https://img.shields.io/badge/NeoForge-1.21.1-EA6C24?style=for-the-badge&logo=neoforge&logoColor=white" alt="NeoForge" /></a>
   <a href="https://gradle.org/"><img src="https://img.shields.io/badge/Gradle-8.8-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle" /></a>
-  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Tests-44%2F44%20Passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
+  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Tests-84%2F84%20Passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
 </p>
 
 ---

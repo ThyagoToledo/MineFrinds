@@ -1,0 +1,4 @@
+# Copy to <instance>/config/companions-ai.properties. Start tools/start-local-ai.ps1 first.
+enabled=true
+endpoint=http://127.0.0.1:8080/v1/chat/completions
+timeout_ms=10000

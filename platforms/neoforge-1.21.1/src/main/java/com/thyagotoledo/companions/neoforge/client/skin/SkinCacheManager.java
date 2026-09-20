@@ -116,14 +116,16 @@ public class SkinCacheManager {
         return CompletableFuture.supplyAsync(() -> {
             try {
                 Path dir = getCacheDir();
-                Path pngFile = dir.resolve(cleanName + ".png");
+                Path pngFile = dir.resolve((cleanName.equals("rimuru") ? "rimuru_demonlord_v1" : cleanName) + ".png");
                 Path jsonFile = dir.resolve(cleanName + ".json");
 
                 boolean isSlim = false;
 
                 if (!Files.exists(pngFile)) {
                     // 1. Tenta baixar via Ashcon API
-                    boolean downloaded = downloadFromAshcon(cleanName, pngFile, jsonFile);
+                    boolean downloaded = cleanName.equals("rimuru")
+                            ? downloadRimuru(pngFile)
+                            : downloadFromAshcon(cleanName, pngFile, jsonFile);
                     if (downloaded && Files.exists(jsonFile)) {
                         try {
                             JsonObject meta = JsonParser.parseString(Files.readString(jsonFile)).getAsJsonObject();
@@ -136,6 +138,7 @@ public class SkinCacheManager {
 
                     // 2. Fallback Minotar se Ashcon falhar
                     if (!Files.exists(pngFile)) {
+                        if (cleanName.equals("rimuru")) return Optional.empty();
                         boolean minotarSuccess = downloadFromMinotar(cleanName, pngFile);
                         if (!minotarSuccess) {
                             return Optional.empty();
@@ -196,6 +199,34 @@ public class SkinCacheManager {
                 return Optional.empty();
             }
         }, IO_EXECUTOR);
+    }
+
+    private static boolean downloadRimuru(Path destination) {
+        try (InputStream bundled = SkinCacheManager.class.getResourceAsStream("/assets/companions/textures/entity/rimuru_demonlord_v1.png")) {
+            if (bundled != null) {
+                Files.copy(bundled, destination, StandardCopyOption.REPLACE_EXISTING);
+                return true;
+            }
+        } catch (Exception ignored) {
+        }
+
+        HttpURLConnection connection = null;
+        try {
+            String url = com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("rimuru").getTextureUrl();
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MineFriends/1.0");
+            connection.setConnectTimeout(4000);
+            connection.setReadTimeout(4000);
+            if (connection.getResponseCode() != 200) return false;
+            byte[] png;
+            try (InputStream input = connection.getInputStream()) { png = input.readNBytes(65537); }
+            if (png.length > 65536) return false;
+            var image = javax.imageio.ImageIO.read(new ByteArrayInputStream(png));
+            if (image == null || image.getWidth() != 64 || image.getHeight() != 64) return false;
+            Files.write(destination, png);
+            return true;
+        } catch (Exception failure) { return false; }
+        finally { if (connection != null) connection.disconnect(); }
     }
 
     private static boolean downloadFromAshcon(String username, Path targetPng, Path targetJson) {

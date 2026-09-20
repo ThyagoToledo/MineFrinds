@@ -39,7 +39,14 @@ public final class HttpInferenceTransport implements InferenceTransport {
             conn.setDoOutput(true);
             String payload = "{\"messages\":[{\"role\":\"system\",\"content\":\"" + escape(systemPrompt) +
                     "\"},{\"role\":\"user\",\"content\":\"" + escape(prompt) +
-                    "\"}],\"temperature\":0.2,\"max_tokens\":160}";
+                    "\"}],\"temperature\":0.2,\"max_tokens\":160," +
+                    "\"chat_template_kwargs\":{\"enable_thinking\":false}," +
+                    "\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{" +
+                    "\"name\":\"companion_dialogue\",\"strict\":true,\"schema\":{" +
+                    "\"type\":\"object\",\"properties\":{" +
+                    "\"intent\":{\"type\":\"string\",\"enum\":[\"CASUAL_CHAT\"]}," +
+                    "\"speech\":{\"type\":\"string\"}}," +
+                    "\"required\":[\"intent\",\"speech\"],\"additionalProperties\":false}}}}";
             try (OutputStream output = conn.getOutputStream()) {
                 output.write(payload.getBytes(StandardCharsets.UTF_8));
             }

@@ -2,7 +2,7 @@ package com.thyagotoledo.companions.neoforge.entity.player;
 
 import com.mojang.authlib.GameProfile;
 import com.thyagotoledo.companions.core.model.CompanionMode;
-import com.thyagotoledo.companions.core.planner.RecipeCatalog;
+import com.thyagotoledo.companions.neoforge.service.EquipmentPolicy;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
@@ -65,20 +65,44 @@ public class CompanionServerPlayer extends ServerPlayer {
     private final NeoForgeCompanionEntity dataEntity;
     private NeoForgePermissionService permissionService;
     private CompanionMode mode = CompanionMode.FOLLOW;
+    private int perceptionTicks;
+    private int stairSteps;
+    private int stairApproachTicks;
+    private BlockPos stairDestination;
+    private net.minecraft.core.Direction miningDirection;
+    private BlockState blockedOre;
+    private long nextGearCraftTick;
+    private BlockPos remoteBreakTarget;
+    private float remoteBreakProgress;
+    private long nextRemoteUseTick;
+    private LivingEntity combatTarget;
+    private boolean autonomous;
+    private long nextAutonomyTick;
     private int healCooldown = 0;
     private long lastRecallGameTime = 0L;
 
     // Estado para tarefas ativas de trabalho (Madeira / Mineracao / Agricultura)
     private BlockPos targetWorkPos = null;
     private int workBreakTicks = 0;
+    private float miningProgress;
     private int harvestedCount = 0;
     private long nextWorkScanTick = 0L;
+    private BlockPos observedWorkTarget;
+    private Vec3 lastWorkPosition;
+    private int stalledWorkTicks;
+    private java.util.List<BlockPos> localPath = java.util.Collections.emptyList();
+    private long nextPathTick;
+    private Vec3 lastPathTarget;
+    private Vec3 idleLookTarget;
+    private long nextIdleLookTick;
     private AABB pendingDropCollectionBox = null;
     private long pendingDropCollectionUntilTick = 0L;
 
     // Meta pendente de crafting autonomo
-    private String pendingCraftItem = null;
-    private int pendingCraftCount = 0;
+    private Item pendingCraftItem;
+    private int pendingCraftCount;
+    private long pendingCraftUntil;
+    private long nextCraftRetry;
 
     public CompanionServerPlayer(MinecraftServer server, ServerLevel level, GameProfile profile,
                                 ClientInformation clientInfo, UUID ownerUuid,
@@ -107,6 +131,13 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     public void setPermissionService(NeoForgePermissionService permissionService) {
         this.permissionService = permissionService != null ? permissionService : new NeoForgePermissionService();
+    }
+
+    private boolean canUsePlayerBreak(BlockPos pos) {
+        if (pos == null || !level().hasChunkAt(pos)) return false;
+        return (permissionService == null || permissionService.canBreakBlockAt(ownerUuid,
+                level().dimension().location().toString(), pos.getX(), pos.getY(), pos.getZ()))
+                && serverLevel().mayInteract(this, pos);
     }
 
     public boolean checkCanBreakBlock(BlockPos pos) {
@@ -165,14 +196,46 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     @Override
     public void die(DamageSource damageSource) {
+        saveEquipmentCheckpoint();
         super.die(damageSource);
         speakToOwner("Fui derrotado em combate! Use /companion spawn para me convocar novamente.");
     }
 
     @Override
+    protected void dropEquipment() { /* NPC-only keep inventory; player gamerules are unchanged. */ }
+
+    @Override
+    protected void dropExperience(net.minecraft.world.entity.Entity killer) { }
+
+    public void saveEquipmentCheckpoint() {
+        if (server == null) return;
+        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        tag.put("items", getInventory().save(new net.minecraft.nbt.ListTag()));
+        tag.putInt("selected", getInventory().selected);
+        tag.putInt("level", experienceLevel);
+        tag.putInt("total", totalExperience);
+        tag.putFloat("progress", experienceProgress);
+        com.thyagotoledo.companions.neoforge.entity.CompanionSavedData.get(server.overworld()).saveEquipment(ownerUuid, tag);
+    }
+
+    public void restoreEquipmentCheckpoint() {
+        var tag = com.thyagotoledo.companions.neoforge.entity.CompanionSavedData.get(server.overworld()).getEquipment(ownerUuid);
+        if (tag != null) {
+            getInventory().clearContent();
+            getInventory().load(tag.getList("items", 10));
+            getInventory().selected = Math.max(0, Math.min(8, tag.getInt("selected")));
+            experienceLevel = tag.getInt("level");
+            totalExperience = tag.getInt("total");
+            experienceProgress = tag.getFloat("progress");
+        }
+        gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        if (getHealth() <= 0) setHealth(getMaxHealth());
+    }
+
+    @Override
     public void tick() {
         super.doTick();
-        tickAI();
+        if (isAlive()) tickAI();
     }
 
     /**
@@ -183,14 +246,58 @@ public class CompanionServerPlayer extends ServerPlayer {
             return;
         }
 
+        if (this.tickCount % 100 == 0) saveEquipmentCheckpoint();
+
+        if (com.thyagotoledo.companions.neoforge.service.RemoteViewService.tickControlled(this)) {
+            if (tickCount % 5 == 0) { pickupNearbyItems(); collectPendingDrops(); }
+            return;
+        }
+
         // 1. Inteligencia periodica a cada 20 ticks (1 segundo)
         if (this.tickCount % 20 == 0) {
             tryAutoEat();
             smartEquipArmor();
             smartEquipTools();
+            if (dataEntity != null) {
+                java.util.List<com.thyagotoledo.companions.core.model.ItemSlot> slots = new java.util.ArrayList<>();
+                for (int slot = 0; slot < 36; slot++) {
+                    ItemStack stack = getInventory().getItem(slot);
+                    if (!stack.isEmpty()) slots.add(new com.thyagotoledo.companions.core.model.ItemSlot(
+                            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(), stack.getCount()));
+                }
+                dataEntity.setInventory(new com.thyagotoledo.companions.core.model.InventorySnapshot(slots, 36));
+            }
         }
 
         ServerPlayer owner = this.server.getPlayerList().getPlayer(this.ownerUuid);
+
+        if (owner == null || owner.level() != this.level()) {
+            this.setDeltaMovement(0, this.getDeltaMovement().y, 0);
+            return;
+        }
+        if (this.mode == CompanionMode.WOOD || this.mode == CompanionMode.MINE || this.mode == CompanionMode.FARM) {
+            boolean capacity = false;
+            for (int slot = 0; slot < 36; slot++) {
+                ItemStack stack = getInventory().getItem(slot);
+                if (stack.isEmpty() || stack.getCount() < stack.getMaxStackSize()) { capacity = true; break; }
+            }
+            if (!capacity) {
+                setMode(CompanionMode.FOLLOW);
+                speakToOwner("Mochila cheia; trabalho pausado / Bag full; work paused.");
+                return;
+            }
+            if (targetWorkPos != null && targetWorkPos.equals(observedWorkTarget)
+                    && lastWorkPosition != null && position().distanceToSqr(lastWorkPosition) < 0.01 && workBreakTicks == 0) {
+                if (++stalledWorkTicks >= 100) {
+                    setMode(CompanionMode.FOLLOW);
+                    speakToOwner("Nao achei um caminho seguro. Aproxime-me do recurso / No safe route. Bring me closer to the resource.");
+                    stalledWorkTicks = 0;
+                    return;
+                }
+            } else stalledWorkTicks = 0;
+            observedWorkTarget = targetWorkPos;
+            lastWorkPosition = position();
+        }
 
         // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos) e
         // das areas onde uma tarefa acabou de quebrar blocos. A janela extra
@@ -199,7 +306,11 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (this.tickCount % 5 == 0) {
             pickupNearbyItems();
             collectPendingDrops();
+            checkPendingCraftFulfillment(owner);
         }
+
+        if (handleCombatPriority(owner)) return;
+        if (isUsingItem()) { setDeltaMovement(0, getDeltaMovement().y, 0); return; }
 
         // 3. Execucao de acordo com o modo atual
         switch (this.mode) {
@@ -208,7 +319,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             case WOOD -> handleWoodMode(owner);
             case MINE -> handleMineMode(owner);
             case FARM -> handleFarmMode(owner);
-            case FOLLOW, WORK, IDLE -> handleFollowMode(owner);
+            case WORK -> handleAutonomousMode(owner);
+            case FOLLOW, IDLE -> handleFollowMode(owner);
         }
     }
 
@@ -216,7 +328,7 @@ public class CompanionServerPlayer extends ServerPlayer {
      * Auto-alimentacao: consome alimentos da bolsa se a vida estiver abaixo de 18 coracoes.
      */
     private void tryAutoEat() {
-        if (this.getHealth() >= 18.0f) {
+        if (!this.getFoodData().needsFood() || isUsingItem() || combatTarget != null) {
             return;
         }
 
@@ -224,11 +336,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             ItemStack stack = this.getInventory().getItem(i);
             if (!stack.isEmpty() && stack.has(DataComponents.FOOD)) {
                 FoodProperties food = stack.get(DataComponents.FOOD);
-                int nutrition = food != null ? food.nutrition() : 4;
-                this.heal(nutrition);
-                stack.shrink(1);
-                this.level().playSound(null, this.getX(), this.getY(), this.getZ(),
-                        SoundEvents.GENERIC_EAT, SoundSource.PLAYERS, 1.0f, 1.0f);
+                if (food != null) { swapToHand(i); startUsingItem(InteractionHand.MAIN_HAND); }
                 break;
             }
         }
@@ -238,117 +346,68 @@ public class CompanionServerPlayer extends ServerPlayer {
      * Auto-equip de armadura: equipa automaticamente as pecas com maior protecao encontradas na bolsa.
      */
     private void smartEquipArmor() {
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.getItem() instanceof ArmorItem armor) {
-                EquipmentSlot slot = armor.getEquipmentSlot();
-                ItemStack currentArmor = this.getItemBySlot(slot);
-                int currentScore = getArmorScore(currentArmor);
-                int newScore = getArmorScore(stack);
-
-                if (newScore > currentScore) {
-                    this.setItemSlot(slot, stack.copy());
-                    stack.setCount(0);
-                    if (!currentArmor.isEmpty()) {
-                        this.getInventory().add(currentArmor);
-                    }
-                }
+        for (EquipmentSlot slot : new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            ItemStack current = getItemBySlot(slot);
+            if (net.minecraft.world.item.enchantment.EnchantmentHelper.has(current, net.minecraft.world.item.enchantment.EnchantmentEffectComponents.PREVENT_ARMOR_CHANGE)) continue;
+            double best = EquipmentPolicy.armor(current, slot);
+            int chosen = -1;
+            for (int i = 0; i < 36; i++) {
+                double score = EquipmentPolicy.armor(getInventory().getItem(i), slot);
+                if (score > best) { best = score; chosen = i; }
+            }
+            if (chosen >= 0) {
+                ItemStack replacement = getInventory().getItem(chosen);
+                setItemSlot(slot, replacement);
+                getInventory().setItem(chosen, current);
             }
         }
     }
 
-    private int getArmorScore(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof ArmorItem armor)) {
-            return 0;
-        }
-        return armor.getDefense() * 10 + (int) (armor.getToughness() * 5);
-    }
-
-    /**
-     * Auto-equip de ferramentas: seleciona a ferramenta correta para o modo atual.
-     */
     private void smartEquipTools() {
-        switch (this.mode) {
-            case WOOD -> equipBestTool(AxeItem.class);
-            case MINE -> equipBestTool(PickaxeItem.class);
+        if (combatTarget != null || isUsingItem()) return;
+        switch (mode) {
+            case WOOD -> equipForBlock(Blocks.OAK_LOG.defaultBlockState());
+            case MINE -> equipForBlock(targetWorkPos == null ? Blocks.STONE.defaultBlockState() : level().getBlockState(targetWorkPos));
             case DEFEND -> equipBestWeapon();
-            case FARM -> equipBestTool(HoeItem.class);
-            default -> {}
+            default -> { }
         }
     }
 
-    private <T extends Item> void equipBestTool(Class<T> toolClass) {
-        int bestSlot = -1;
-        int bestTierScore = -1;
+    private void equipBestTool(Class<? extends Item> ignored) { equipForBlock(Blocks.STONE.defaultBlockState()); }
 
-        ItemStack currentMain = this.getMainHandItem();
-        if (toolClass.isInstance(currentMain.getItem())) {
-            bestTierScore = getTierScore(currentMain);
-        }
-
+    private boolean equipForBlock(BlockState state) {
+        int chosen = getInventory().selected;
+        double best = EquipmentPolicy.tool(getMainHandItem(), state);
         for (int i = 0; i < 36; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && toolClass.isInstance(stack.getItem())) {
-                int score = getTierScore(stack);
-                if (score > bestTierScore) {
-                    bestTierScore = score;
-                    bestSlot = i;
-                }
-            }
+            double score = EquipmentPolicy.tool(getInventory().getItem(i), state);
+            if (score > best) { best = score; chosen = i; }
         }
+        swapToHand(chosen);
+        return best >= 0;
+    }
 
-        if (bestSlot != -1) {
-            ItemStack bestItem = this.getInventory().getItem(bestSlot);
-            ItemStack oldMain = this.getMainHandItem();
-            this.setItemSlot(EquipmentSlot.MAINHAND, bestItem.copy());
-            bestItem.setCount(0);
-            if (!oldMain.isEmpty()) {
-                this.getInventory().add(oldMain);
-            }
-        }
+    private boolean hasToolFor(BlockState state) {
+        if (!state.requiresCorrectToolForDrops()) return true;
+        for (int i = 0; i < 36; i++) if (getInventory().getItem(i).isCorrectToolForDrops(state)) return true;
+        return false;
+    }
+
+    private void swapToHand(int slot) {
+        int selected = getInventory().selected;
+        if (slot == selected) return;
+        ItemStack held = getInventory().getItem(selected);
+        getInventory().setItem(selected, getInventory().getItem(slot));
+        getInventory().setItem(slot, held);
     }
 
     private void equipBestWeapon() {
-        int bestSlot = -1;
-        int bestScore = -1;
-
-        ItemStack currentMain = this.getMainHandItem();
-        if (currentMain.getItem() instanceof SwordItem || currentMain.getItem() instanceof AxeItem) {
-            bestScore = getTierScore(currentMain);
-        }
-
+        double best = EquipmentPolicy.weapon(getMainHandItem());
+        int chosen = getInventory().selected;
         for (int i = 0; i < 36; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && (stack.getItem() instanceof SwordItem || stack.getItem() instanceof AxeItem)) {
-                int score = getTierScore(stack) + (stack.getItem() instanceof SwordItem ? 5 : 0);
-                if (score > bestScore) {
-                    bestScore = score;
-                    bestSlot = i;
-                }
-            }
+            double score = EquipmentPolicy.weapon(getInventory().getItem(i));
+            if (score > best) { best = score; chosen = i; }
         }
-
-        if (bestSlot != -1) {
-            ItemStack bestItem = this.getInventory().getItem(bestSlot);
-            ItemStack oldMain = this.getMainHandItem();
-            this.setItemSlot(EquipmentSlot.MAINHAND, bestItem.copy());
-            bestItem.setCount(0);
-            if (!oldMain.isEmpty()) {
-                this.getInventory().add(oldMain);
-            }
-        }
-    }
-
-    private int getTierScore(ItemStack stack) {
-        if (stack == null || stack.isEmpty()) return 0;
-        String id = stack.getItem().getDescriptionId().toLowerCase(Locale.ROOT);
-        if (id.contains("netherite")) return 60;
-        if (id.contains("diamond")) return 50;
-        if (id.contains("iron")) return 40;
-        if (id.contains("golden")) return 35;
-        if (id.contains("stone")) return 30;
-        if (id.contains("wooden")) return 20;
-        return 10;
+        swapToHand(chosen);
     }
 
     private void pickupNearbyItems() {
@@ -359,7 +418,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private void requestDropCollection(BlockPos center) {
         if (center == null) return;
         AABB area = new AABB(center).inflate(3.0, 2.0, 3.0);
-        if (pendingDropCollectionBox == null) {
+        if (pendingDropCollectionBox == null || pendingDropCollectionBox.getCenter().distanceToSqr(area.getCenter()) > 1024) {
             pendingDropCollectionBox = area;
         } else {
             pendingDropCollectionBox = union(pendingDropCollectionBox, area);
@@ -411,44 +470,201 @@ public class CompanionServerPlayer extends ServerPlayer {
         );
     }
 
+    public void applyRemoteInput(float forward, float sideways, float yaw, float pitch,
+                                 boolean jump, boolean attackHeld, boolean useHeld, int slot) {
+        gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        getInventory().selected = Math.max(0, Math.min(8, slot));
+        setYRot(yaw); setXRot(pitch); setYHeadRot(yaw);
+        double angle = Math.toRadians(yaw);
+        Vec3 direction = new Vec3(sideways * Math.cos(angle) - forward * Math.sin(angle), 0,
+                forward * Math.cos(angle) + sideways * Math.sin(angle));
+        if (direction.lengthSqr() > 1) direction = direction.normalize();
+        setDeltaMovement(direction.x * 0.215, jump && onGround() ? 0.42 : getDeltaMovement().y, direction.z * 0.215);
+        Vec3 eye = getEyePosition();
+        Vec3 end = eye.add(getLookAngle().scale(4.5));
+        var hit = level().clip(new net.minecraft.world.level.ClipContext(eye, end,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, this));
+        if (attackHeld) {
+            LivingEntity victim = null;
+            double nearest = Math.min(9, eye.distanceToSqr(hit.getLocation()));
+            for (LivingEntity entity : level().getEntitiesOfClass(LivingEntity.class, getBoundingBox().expandTowards(getLookAngle().scale(3)).inflate(1))) {
+                if (entity == this || entity instanceof Player || !entity.isAlive() || isAlliedTo(entity)) continue;
+                var intersection = entity.getBoundingBox().inflate(0.1).clip(eye, end);
+                if (intersection.isPresent() && eye.distanceToSqr(intersection.get()) < nearest) {
+                    nearest = eye.distanceToSqr(intersection.get()); victim = entity;
+                }
+            }
+            if (victim != null) {
+                remoteBreakTarget = null; remoteBreakProgress = 0;
+                if (getAttackStrengthScale(0.5f) >= 1) { attack(victim); swing(InteractionHand.MAIN_HAND, true); resetAttackStrengthTicker(); }
+            } else if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                BlockPos pos = hit.getBlockPos();
+                if (!pos.equals(remoteBreakTarget)) { remoteBreakTarget = pos; remoteBreakProgress = 0; }
+                BlockState state = level().getBlockState(pos);
+                remoteBreakProgress += state.getDestroyProgress(this, level(), pos);
+                if (tickCount % 4 == 0) swing(InteractionHand.MAIN_HAND, true);
+                if (remoteBreakProgress >= 1 && canUsePlayerBreak(pos)) {
+                    if (gameMode.destroyBlock(pos)) requestDropCollection(pos);
+                    remoteBreakTarget = null; remoteBreakProgress = 0;
+                }
+            }
+        } else { remoteBreakTarget = null; remoteBreakProgress = 0; }
+        if (useHeld && tickCount >= nextRemoteUseTick) {
+            nextRemoteUseTick = tickCount + 5;
+            if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
+                BlockPos interaction = hit.getBlockPos();
+                if (permissionService != null && !permissionService.canInteractAt(ownerUuid,
+                        level().dimension().location().toString(), interaction.getX(), interaction.getY(), interaction.getZ())) return;
+                gameMode.useItemOn(this, level(), getMainHandItem(), InteractionHand.MAIN_HAND, hit);
+            } else gameMode.useItem(this, level(), getMainHandItem(), InteractionHand.MAIN_HAND);
+        }
+        if (!useHeld && isUsingItem()) releaseUsingItem();
+    }
+
+    private boolean canReachWork(BlockPos target) {
+        Vec3 end = target.getCenter();
+        if (this.getEyePosition().distanceToSqr(end) > 20) return false;
+        var hit = this.level().clip(new net.minecraft.world.level.ClipContext(this.getEyePosition(), end,
+                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Fluid.NONE, this));
+        return hit.getBlockPos().equals(target);
+    }
+
+    private void finishWork() {
+        boolean resume = autonomous;
+        setMode(resume ? CompanionMode.WORK : CompanionMode.FOLLOW);
+    }
+
+    private void handleAutonomousMode(ServerPlayer owner) {
+        handleFollowMode(owner);
+        if (this.tickCount < nextAutonomyTick || owner == null || distanceToSqr(owner) > 144) return;
+        nextAutonomyTick = this.tickCount + 100;
+        if (tickCount % 400 < 100 && tryCraftUpgrade(Blocks.STONE.defaultBlockState(), true)) return;
+        // Bounded starter loop: no exploration, tunnelling or repeated model calls.
+        boolean pickaxe = false;
+        for (int i = 0; i < 36; i++) if (getInventory().getItem(i).isCorrectToolForDrops(Blocks.STONE.defaultBlockState())) pickaxe = true;
+        if (!pickaxe) {
+            prepareWorkbench();
+            if (com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, Items.WOODEN_PICKAXE, 1)) {
+                smartEquipTools();
+                speakToOwner("Preparei uma picareta / I crafted a pickaxe.");
+                return;
+            }
+            if (countLogsInInventory() < 4) {
+                this.mode = CompanionMode.WOOD;
+                if (dataEntity != null) dataEntity.setMode(mode);
+            } else {
+                speakToOwner("Preciso de uma bancada proxima e ingredientes para a picareta / I need a nearby crafting table and pickaxe ingredients.");
+                nextAutonomyTick = this.tickCount + 600;
+            }
+        } else if (countItemInInventory(Items.COBBLESTONE) < 16) {
+            tryCraftUpgrade(Blocks.IRON_ORE.defaultBlockState(), false);
+            equipBestTool(PickaxeItem.class);
+            this.mode = CompanionMode.MINE;
+            perceptionTicks = 0; stairSteps = 0; stairApproachTicks = 0; stairDestination = null; miningDirection = null;
+            if (dataEntity != null) dataEntity.setMode(mode);
+        }
+    }
+
+    private void prepareWorkbench() {
+        for (BlockPos pos : BlockPos.betweenClosed(blockPosition().offset(-3, -2, -3), blockPosition().offset(3, 2, 3))) {
+            if (level().hasChunkAt(pos) && level().getBlockState(pos).is(Blocks.CRAFTING_TABLE)) return;
+        }
+        if (countItemInInventory(Items.CRAFTING_TABLE) == 0
+                && !com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, Items.CRAFTING_TABLE, 1)) return;
+        for (net.minecraft.core.Direction direction : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            BlockPos pos = blockPosition().relative(direction, 2);
+            if (!com.thyagotoledo.companions.neoforge.service.LocalNavigation.safe(this, pos) || !checkCanInteractBlock(pos)) continue;
+            if (level().setBlockAndUpdate(pos, Blocks.CRAFTING_TABLE.defaultBlockState())) {
+                for (int slot = 0; slot < 36; slot++) {
+                    ItemStack stack = getInventory().getItem(slot);
+                    if (stack.is(Items.CRAFTING_TABLE)) { stack.shrink(1); break; }
+                }
+                swing(InteractionHand.MAIN_HAND, true);
+            }
+            return;
+        }
+    }
+
     private void handleStayMode(ServerPlayer owner) {
         Vec3 delta = this.getDeltaMovement();
         this.setDeltaMovement(delta.x * 0.5, delta.y, delta.z * 0.5);
         if (owner != null && this.distanceToSqr(owner) <= 64.0) {
-            lookAtEntity(owner);
+            lookAround(owner);
         }
     }
 
-    private void handleDefendMode(ServerPlayer owner) {
-        LivingEntity priorityTarget = null;
-        if (owner != null && owner.getLastHurtByMob() != null && owner.getLastHurtByMob().isAlive()) {
-            priorityTarget = owner.getLastHurtByMob();
+    private void moveToward(Vec3 target, double speed) {
+        if (this.tickCount >= nextPathTick || lastPathTarget == null || lastPathTarget.distanceToSqr(target) > 4) {
+            nextPathTick = this.tickCount + 20;
+            lastPathTarget = target;
+            localPath = com.thyagotoledo.companions.neoforge.service.LocalNavigation.plan(this, target);
         }
-
-        if (priorityTarget == null && this.tickCount % 10 == 0) {
-            AABB searchArea = this.getBoundingBox().inflate(12.0);
-            List<Monster> monsters = this.level().getEntitiesOfClass(Monster.class, searchArea);
-            if (!monsters.isEmpty()) {
-                priorityTarget = monsters.get(0);
-            }
+        while (!localPath.isEmpty() && this.position().distanceToSqr(Vec3.atBottomCenterOf(localPath.get(0))) < 0.4) {
+            localPath.remove(0);
         }
-
-        if (priorityTarget != null && priorityTarget.isAlive()) {
-            lookAtEntity(priorityTarget);
-            double distSq = this.distanceToSqr(priorityTarget);
-            if (distSq <= 6.0) {
-                this.attack(priorityTarget);
-                this.swing(InteractionHand.MAIN_HAND, true);
-                this.resetAttackStrengthTicker();
-            } else {
-                Vec3 diff = priorityTarget.position().subtract(this.position());
-                Vec3 dir = new Vec3(diff.x, 0, diff.z).normalize().scale(0.26);
-                double jumpY = (this.horizontalCollision && this.onGround()) ? 0.42 : this.getDeltaMovement().y;
-                this.setDeltaMovement(dir.x, jumpY, dir.z);
-            }
+        if (localPath.isEmpty() || !com.thyagotoledo.companions.neoforge.service.LocalNavigation.safe(this, localPath.get(0))) {
+            this.setDeltaMovement(0, this.getDeltaMovement().y, 0);
             return;
         }
+        Vec3 step = Vec3.atBottomCenterOf(localPath.get(0)).subtract(this.position());
+        Vec3 direction = new Vec3(step.x, 0, step.z).normalize().scale(speed);
+        double vertical = this.onGround() && step.y > 0.5 ? 0.42 : this.getDeltaMovement().y;
+        this.setDeltaMovement(direction.x, vertical, direction.z);
+    }
 
+    private void lookAround(ServerPlayer owner) {
+        if (idleLookTarget == null || this.tickCount >= nextIdleLookTick) {
+            nextIdleLookTick = this.tickCount + 40 + this.random.nextInt(60);
+            idleLookTarget = owner != null && this.random.nextInt(4) == 0
+                    ? owner.getEyePosition()
+                    : this.position().add(this.random.nextDouble() * 12 - 6,
+                            1.0 + this.random.nextDouble() * 2, this.random.nextDouble() * 12 - 6);
+        }
+        lookAtPosition(idleLookTarget);
+    }
+
+    private boolean handleCombatPriority(ServerPlayer owner) {
+        if (owner == null) return false;
+        if (combatTarget != null && (!combatTarget.isAlive() || combatTarget.level() != level()
+                || (combatTarget.distanceToSqr(owner) > 324 && combatTarget.distanceToSqr(this) > 324)
+                || combatTarget.isAlliedTo(owner) || combatTarget.isAlliedTo(this))) {
+            combatTarget = null;
+            nextPathTick = 0;
+            smartEquipTools();
+        }
+        if (combatTarget == null && tickCount % 5 == 0) {
+            double closest = Double.MAX_VALUE;
+            AABB searchBox = owner.getBoundingBox().minmax(this.getBoundingBox()).inflate(12, 6, 12);
+            for (LivingEntity entity : level().getEntitiesOfClass(LivingEntity.class, searchBox)) {
+                boolean hostile = entity instanceof net.minecraft.world.entity.monster.Enemy
+                        || entity.getType().getCategory() == net.minecraft.world.entity.MobCategory.MONSTER
+                        || (entity instanceof net.minecraft.world.entity.Mob mob && (mob.getTarget() == owner || mob.getTarget() == this));
+                if (!hostile || !entity.isAlive() || entity.isAlliedTo(owner) || entity.isAlliedTo(this)) continue;
+                if (entity instanceof net.minecraft.world.entity.NeutralMob neutral
+                        && !neutral.isAngryAt(owner) && !neutral.isAngryAt(this)) continue;
+                if (!hasLineOfSight(entity) || (distanceToSqr(entity) > 324 && entity.distanceToSqr(owner) > 324)) continue;
+                double score = Math.min(entity.distanceToSqr(owner), entity.distanceToSqr(this));
+                if (score < closest) { closest = score; combatTarget = entity; }
+            }
+        }
+        if (combatTarget == null) return false;
+        if (isUsingItem()) stopUsingItem();
+        equipBestWeapon();
+        lookAtEntity(combatTarget);
+        if (distanceToSqr(combatTarget) <= 6.25 && hasLineOfSight(combatTarget)) {
+            setDeltaMovement(0, getDeltaMovement().y, 0);
+            if (getAttackStrengthScale(0.5f) >= 1.0f) {
+                attack(combatTarget);
+                swing(InteractionHand.MAIN_HAND, true);
+                resetAttackStrengthTicker();
+            }
+        } else if (mode != CompanionMode.STAY) moveToward(combatTarget.position(), 0.26);
+        return true;
+    }
+
+    private void handleDefendMode(ServerPlayer owner) {
         handleFollowMode(owner);
     }
 
@@ -464,8 +680,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             workBreakTicks = 0;
             if (targetWorkPos == null) {
                 checkPendingCraftFulfillment(owner);
-                setMode(CompanionMode.FOLLOW);
-                speakToOwner("Toda a madeira proxima foi coletada (" + harvestedCount + " blocos). Voltando a te seguir!");
+                finishWork();
+                speakToOwner("Nao achei mais madeira alcancavel (" + harvestedCount + " blocos). Voltando a te seguir!");
                 harvestedCount = 0;
                 return;
             }
@@ -479,10 +695,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         double distEyeSq = this.getEyePosition().distanceToSqr(targetCenter);
 
         // Se estiver distante horizontalmente e fora do alcance dos olhos
-        if (dXZ > 2.2 && distEyeSq > 20.0) {
-            Vec3 dir = new Vec3(diff.x, 0, diff.z).normalize().scale(0.24);
-            double jumpY = (this.horizontalCollision && this.onGround()) ? 0.42 : this.getDeltaMovement().y;
-            this.setDeltaMovement(dir.x, jumpY, dir.z);
+        if (!canReachWork(targetWorkPos)) {
+            moveToward(targetCenter, 0.24);
         } else {
             Vec3 delta = this.getDeltaMovement();
             this.setDeltaMovement(delta.x * 0.3, delta.y, delta.z * 0.3);
@@ -494,30 +708,32 @@ public class CompanionServerPlayer extends ServerPlayer {
 
             if (workBreakTicks >= 20) {
                 // Valida protecao do bloco base
-                if (!checkCanBreakBlock(targetWorkPos)) {
+                if (!canUsePlayerBreak(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para quebrar madeira nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    setMode(CompanionMode.FOLLOW);
+                    finishWork();
                     return;
                 }
 
                 // Destroi o bloco base
-                this.level().destroyBlock(targetWorkPos, true, this);
-                requestDropCollection(targetWorkPos);
-                harvestedCount++;
+                if (this.gameMode.destroyBlock(targetWorkPos)) {
+                    requestDropCollection(targetWorkPos);
+                    harvestedCount++;
+                }
 
                 // Cascata: derruba troncos conectados verticalmente para cima ate 16 blocos
                 BlockPos currentAbove = targetWorkPos.above();
                 for (int i = 0; i < 16; i++) {
                     BlockState stateAbove = this.level().getBlockState(currentAbove);
                     if (!stateAbove.isAir() && (stateAbove.is(BlockTags.LOGS) || stateAbove.getBlock().getDescriptionId().contains("log"))) {
-                        if (!checkCanBreakBlock(currentAbove)) {
+                        if (!canUsePlayerBreak(currentAbove)) {
                             break;
                         }
-                        this.level().destroyBlock(currentAbove, true, this);
-                        requestDropCollection(currentAbove);
-                        harvestedCount++;
+                        if (this.gameMode.destroyBlock(currentAbove)) {
+                            requestDropCollection(currentAbove);
+                            harvestedCount++;
+                        } else break;
                         currentAbove = currentAbove.above();
                     } else {
                         break;
@@ -533,8 +749,8 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
 
                 if (harvestedCount >= 16) {
-                    setMode(CompanionMode.FOLLOW);
-                    speakToOwner("Coletei 16 troncos de madeira e guardei na bolsa! Voltando a te seguir.");
+                    finishWork();
+                    speakToOwner("Terminei o corte; recolhendo os drops / Cutting finished; collecting drops.");
                     harvestedCount = 0;
                 }
             }
@@ -542,14 +758,43 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void handleMineMode(ServerPlayer owner) {
+        if (miningDirection == null) miningDirection = net.minecraft.core.Direction.fromYRot(getYRot());
+        if (targetWorkPos == null) {
+            if (stairDestination != null && level().getBlockState(stairDestination).isAir()
+                    && level().getBlockState(stairDestination.above()).isAir()
+                    && level().getBlockState(stairDestination.above(2)).isAir()) {
+                moveToward(Vec3.atBottomCenterOf(stairDestination), 0.18);
+                if (++stairApproachTicks >= 100) {
+                    setMode(CompanionMode.FOLLOW);
+                    speakToOwner("Descida bloqueada; trabalho pausado / Descent blocked; work paused.");
+                    return;
+                }
+                if (position().distanceToSqr(Vec3.atBottomCenterOf(stairDestination)) < 0.5) {
+                    stairSteps++; stairDestination = null; perceptionTicks = 0; stairApproachTicks = 0;
+                }
+                return;
+            }
+            if (stairDestination == null) {
+                setYRot(getYRot() + 8); setYHeadRot(getYRot()); setXRot(15);
+                perceptionTicks++;
+            }
+            equipBestTool(PickaxeItem.class);
+        }
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
             if (this.tickCount < nextWorkScanTick) return;
-            nextWorkScanTick = this.tickCount + 20L;
+            nextWorkScanTick = this.tickCount + 10L;
             targetWorkPos = findNearestOre();
+            if (blockedOre != null && tryCraftUpgrade(blockedOre, false)) {
+                targetWorkPos = null;
+                return;
+            }
+            if (targetWorkPos == null && perceptionTicks < 45) return;
+            if (targetWorkPos == null) targetWorkPos = staircaseTarget();
+            if (targetWorkPos == null && stairDestination != null) return;
             workBreakTicks = 0;
             if (targetWorkPos == null) {
                 checkPendingCraftFulfillment(owner);
-                setMode(CompanionMode.FOLLOW);
+                finishWork();
                 speakToOwner("Nao encontrei mais minerios ou pedras expostas por perto. Voltando a te seguir!");
                 harvestedCount = 0;
                 return;
@@ -563,10 +808,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         double dXZ = Math.hypot(diff.x, diff.z);
         double distEyeSq = this.getEyePosition().distanceToSqr(targetCenter);
 
-        if (dXZ > 2.2 && distEyeSq > 20.0) {
-            Vec3 dir = new Vec3(diff.x, 0, diff.z).normalize().scale(0.24);
-            double jumpY = (this.horizontalCollision && this.onGround()) ? 0.42 : this.getDeltaMovement().y;
-            this.setDeltaMovement(dir.x, jumpY, dir.z);
+        if (!canReachWork(targetWorkPos)) {
+            moveToward(targetCenter, 0.24);
         } else {
             Vec3 delta = this.getDeltaMovement();
             this.setDeltaMovement(delta.x * 0.3, delta.y, delta.z * 0.3);
@@ -576,19 +819,29 @@ public class CompanionServerPlayer extends ServerPlayer {
                 this.swing(InteractionHand.MAIN_HAND, true);
             }
 
-            if (workBreakTicks >= 25) {
+            BlockState miningState = this.level().getBlockState(targetWorkPos);
+            equipForBlock(miningState);
+            if (!this.hasCorrectToolForDrops(miningState)) {
+                finishWork();
+                speakToOwner("Preciso de uma picareta adequada / I need a suitable pickaxe.");
+                return;
+            }
+            if (workBreakTicks == 1) miningProgress = 0;
+            miningProgress += miningState.getDestroyProgress(this, this.level(), targetWorkPos);
+            if (miningProgress >= 1.0f) {
                 // Valida protecao de mineracao
-                if (!checkCanBreakBlock(targetWorkPos)) {
+                if (!canUsePlayerBreak(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para minerar nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    setMode(CompanionMode.FOLLOW);
+                    finishWork();
                     return;
                 }
 
-                this.level().destroyBlock(targetWorkPos, true, this);
-                requestDropCollection(targetWorkPos);
-                harvestedCount++;
+                if (this.gameMode.destroyBlock(targetWorkPos)) {
+                    requestDropCollection(targetWorkPos);
+                    harvestedCount++;
+                }
                 targetWorkPos = null;
                 workBreakTicks = 0;
 
@@ -597,8 +850,8 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
 
                 if (harvestedCount >= 16) {
-                    setMode(CompanionMode.FOLLOW);
-                    speakToOwner("Coletei recursos minerados suficientes! Voltando a te seguir.");
+                    finishWork();
+                    speakToOwner("Terminei esta etapa de mineracao; recolhendo drops / Mining batch finished; collecting drops.");
                     harvestedCount = 0;
                 }
             }
@@ -615,7 +868,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             targetWorkPos = findFarmTarget();
             workBreakTicks = 0;
             if (targetWorkPos == null) {
-                setMode(CompanionMode.FOLLOW);
+                finishWork();
                 speakToOwner("Trabalho na fazenda concluido! Todas as safras maduras foram colhidas e replantadas.");
                 return;
             }
@@ -628,10 +881,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         double dXZ = Math.hypot(diff.x, diff.z);
         double distEyeSq = this.getEyePosition().distanceToSqr(targetCenter);
 
-        if (dXZ > 2.0 && distEyeSq > 16.0) {
-            Vec3 dir = new Vec3(diff.x, 0, diff.z).normalize().scale(0.24);
-            double jumpY = (this.horizontalCollision && this.onGround()) ? 0.42 : this.getDeltaMovement().y;
-            this.setDeltaMovement(dir.x, jumpY, dir.z);
+        if (!canReachWork(targetWorkPos)) {
+            moveToward(targetCenter, 0.24);
         } else {
             Vec3 delta = this.getDeltaMovement();
             this.setDeltaMovement(delta.x * 0.3, delta.y, delta.z * 0.3);
@@ -649,7 +900,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                         speakToOwner("Nao tenho permissao para colher safras nesta area protegida!");
                         targetWorkPos = null;
                         workBreakTicks = 0;
-                        setMode(CompanionMode.FOLLOW);
+                        finishWork();
                         return;
                     }
                     this.level().destroyBlock(targetWorkPos, true, this);
@@ -665,7 +916,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     speakToOwner("Nao tenho permissao para plantar sementes nesta area protegida!");
                     targetWorkPos = null;
                     workBreakTicks = 0;
-                    setMode(CompanionMode.FOLLOW);
+                    finishWork();
                     return;
                 }
                 ItemStack seedStack = findSeedsInInventory();
@@ -738,20 +989,18 @@ public class CompanionServerPlayer extends ServerPlayer {
             double distSq = this.distanceToSqr(owner);
 
             if (distSq > 1296.0) {
-                this.teleportTo(owner.serverLevel(), owner.getX() + 1.0, owner.getY(), owner.getZ() + 1.0, owner.getYRot(), owner.getXRot());
+                if (this.tickCount % 100 == 0) recallToOwner();
                 return;
             }
 
             if (distSq > 9.0) {
                 lookAtEntity(owner);
                 Vec3 diff = owner.position().subtract(this.position());
-                Vec3 dir = new Vec3(diff.x, 0, diff.z).normalize().scale(0.24);
-                double jumpY = (this.horizontalCollision && this.onGround()) ? 0.42 : this.getDeltaMovement().y;
-                this.setDeltaMovement(dir.x, jumpY, dir.z);
+                moveToward(owner.position(), 0.24);
             } else {
                 Vec3 delta = this.getDeltaMovement();
                 this.setDeltaMovement(delta.x * 0.5, delta.y, delta.z * 0.5);
-                lookAtEntity(owner);
+                lookAround(owner);
             }
         }
     }
@@ -780,25 +1029,80 @@ public class CompanionServerPlayer extends ServerPlayer {
         return bestPos;
     }
 
-    private BlockPos findNearestOre() {
-        BlockPos currentPos = this.blockPosition();
-        BlockPos bestPos = null;
-        double bestDist = Double.MAX_VALUE;
+    private boolean visibleBlock(BlockPos pos) {
+        Vec3 direction = pos.getCenter().subtract(getEyePosition());
+        if (direction.normalize().dot(getLookAngle()) < 0.35) return false;
+        var hit = level().clip(new net.minecraft.world.level.ClipContext(getEyePosition(), pos.getCenter(),
+                net.minecraft.world.level.ClipContext.Block.OUTLINE, net.minecraft.world.level.ClipContext.Fluid.NONE, this));
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK && hit.getBlockPos().equals(pos);
+    }
 
-        for (BlockPos candidate : BlockPos.betweenClosed(currentPos.offset(-10, -4, -10), currentPos.offset(10, 4, 10))) {
-            BlockState state = this.level().getBlockState(candidate);
-            if (!state.isAir()) {
-                String id = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
-                if (id.contains("ore") || id.contains("coal") || id.contains("iron") || id.contains("copper") || id.contains("stone") || id.contains("cobblestone")) {
-                    double dist = candidate.distSqr(currentPos);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        bestPos = candidate.immutable();
-                    }
-                }
+    private BlockPos findNearestOre() {
+        BlockPos current = blockPosition();
+        BlockPos best = null;
+        double bestScore = Double.MAX_VALUE;
+        blockedOre = null;
+        for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-8, -2, -8), current.offset(8, 4, 8))) {
+            if (!level().hasChunkAt(candidate) || candidate.equals(current.below())) continue;
+            BlockState state = level().getBlockState(candidate);
+            boolean ore = state.is(net.neoforged.neoforge.common.Tags.Blocks.ORES);
+            if (!ore && !state.is(net.neoforged.neoforge.common.Tags.Blocks.STONES) && !state.is(Blocks.COBBLESTONE)) continue;
+            if (state.getDestroySpeed(level(), candidate) < 0 || !visibleBlock(candidate)) continue;
+            if (!hasToolFor(state)) { if (ore) blockedOre = state; continue; }
+            double score = candidate.distSqr(current) + (ore ? 0 : 400);
+            if (score < bestScore) { bestScore = score; best = candidate.immutable(); }
+        }
+        return best;
+    }
+
+    private BlockPos staircaseTarget() {
+        if (stairSteps >= 6) return null;
+        if (stairDestination == null) stairDestination = blockPosition().relative(miningDirection).below();
+        BlockPos floor = stairDestination.below();
+        if (!level().hasChunkAt(floor) || !level().getBlockState(floor).isSolidRender(level(), floor)
+                || level().getBlockState(floor).is(Blocks.MAGMA_BLOCK)) { stairDestination = null; return null; }
+        for (BlockPos pos : BlockPos.betweenClosed(stairDestination.offset(-1, -1, -1), stairDestination.offset(1, 2, 1))) {
+            if (!level().hasChunkAt(pos) || !level().getFluidState(pos).isEmpty()) { stairDestination = null; return null; }
+        }
+        for (BlockPos pos : new BlockPos[]{stairDestination.above(2), stairDestination.above(), stairDestination}) {
+            BlockState state = level().getBlockState(pos);
+            if (state.isAir()) continue;
+            if (state.hasBlockEntity() || state.getDestroySpeed(level(), pos) < 0 || !hasToolFor(state)) {
+                stairDestination = null; return null;
+            }
+            lookAtPosition(pos.getCenter());
+            return visibleBlock(pos) ? pos : null;
+        }
+        return null;
+    }
+
+    private boolean tryCraftUpgrade(BlockState block, boolean weapon) {
+        if (tickCount < nextGearCraftTick) return false;
+        nextGearCraftTick = tickCount + 200;
+        double current = -1;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            current = Math.max(current, weapon ? EquipmentPolicy.weapon(stack) : EquipmentPolicy.tool(stack, block));
+        }
+        java.util.Map<Item, ItemStack> unique = new java.util.HashMap<>();
+        for (var holder : serverLevel().getRecipeManager().getAllRecipesFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING)) {
+            if (holder.value().isSpecial() || (!(holder.value() instanceof net.minecraft.world.item.crafting.ShapedRecipe)
+                    && !(holder.value() instanceof net.minecraft.world.item.crafting.ShapelessRecipe))) continue;
+            ItemStack output = holder.value().getResultItem(registryAccess());
+            double score = weapon ? EquipmentPolicy.weapon(output) : EquipmentPolicy.tool(output, block);
+            if (score > current + 0.2 && (weapon || output.getDestroySpeed(block) > 1)) unique.put(output.getItem(), output);
+        }
+        java.util.List<ItemStack> choices = new java.util.ArrayList<>(unique.values());
+        choices.sort(java.util.Comparator.comparingDouble(stack -> weapon ? EquipmentPolicy.weapon(stack) : EquipmentPolicy.tool(stack, block)));
+        for (int index = 0; index < Math.min(4, choices.size()); index++) {
+            ItemStack choice = choices.get(index);
+            if (com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, choice.getItem(), 1)) {
+                if (weapon) equipBestWeapon(); else equipForBlock(block);
+                speakToOwner("Preparei equipamento melhor / Crafted better equipment: " + choice.getHoverName().getString());
+                return true;
             }
         }
-        return bestPos;
+        return false;
     }
 
     /**
@@ -880,7 +1184,7 @@ public class CompanionServerPlayer extends ServerPlayer {
      * offhand, mao principal e toda a mochila do companheiro.
      */
     public void openCompanionInventory(ServerPlayer owner) {
-        if (owner == null) return;
+        if (owner == null || !owner.getUUID().equals(ownerUuid)) return;
         owner.openMenu(new SimpleMenuProvider(
                 (containerId, playerInventory, player) ->
                         ChestMenu.sixRows(containerId, playerInventory, getFullInventoryContainer()),
@@ -910,7 +1214,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     case 4 -> getItemBySlot(EquipmentSlot.OFFHAND);
                     case 5 -> getItemBySlot(EquipmentSlot.MAINHAND);
                     default -> {
-                        if (slot >= 9 && slot < 45) {
+                        if (slot >= 9 && slot < 45 && slot - 9 != getInventory().selected) {
                             yield getInventory().getItem(slot - 9);
                         }
                         yield ItemStack.EMPTY;
@@ -926,7 +1230,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     ItemStack split = current.split(amount);
                     setItem(slot, current);
                     return split;
-                } else if (slot >= 9 && slot < 45) {
+                } else if (slot >= 9 && slot < 45 && slot - 9 != getInventory().selected) {
                     return getInventory().removeItem(slot - 9, amount);
                 }
                 return ItemStack.EMPTY;
@@ -938,7 +1242,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     ItemStack current = getItem(slot);
                     setItem(slot, ItemStack.EMPTY);
                     return current;
-                } else if (slot >= 9 && slot < 45) {
+                } else if (slot >= 9 && slot < 45 && slot - 9 != getInventory().selected) {
                     return getInventory().removeItemNoUpdate(slot - 9);
                 }
                 return ItemStack.EMPTY;
@@ -954,11 +1258,21 @@ public class CompanionServerPlayer extends ServerPlayer {
                     case 4 -> setItemSlot(EquipmentSlot.OFFHAND, stack);
                     case 5 -> setItemSlot(EquipmentSlot.MAINHAND, stack);
                     default -> {
-                        if (slot >= 9 && slot < 45) {
+                        if (slot >= 9 && slot < 45 && slot - 9 != getInventory().selected) {
                             getInventory().setItem(slot - 9, stack);
                         }
                     }
                 }
+            }
+
+            @Override
+            public boolean canPlaceItem(int slot, ItemStack stack) {
+                if (slot >= 9 && slot < 45) return slot - 9 != getInventory().selected;
+                if (slot == 4 || slot == 5) return true;
+                if (slot < 0 || slot > 3) return false;
+                EquipmentSlot armorSlot = new EquipmentSlot[]{EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}[slot];
+                return EquipmentPolicy.armor(stack, armorSlot) > 0
+                        || CompanionServerPlayer.this.getEquipmentSlotForItem(stack) == armorSlot;
             }
 
             @Override
@@ -968,7 +1282,7 @@ public class CompanionServerPlayer extends ServerPlayer {
 
             @Override
             public boolean stillValid(Player player) {
-                return isAlive() && player.distanceToSqr(CompanionServerPlayer.this) <= 64.0;
+                return isAlive() && player.getUUID().equals(ownerUuid) && player.distanceToSqr(CompanionServerPlayer.this) <= 64.0;
             }
 
             @Override
@@ -985,190 +1299,46 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     /**
      * Sistema de Crafting Autonomo Transacional:
-     * Verifica inventario, procura no bau designado e, se faltar materiais, vai coletar na natureza.
-     * Garante conservacao estrita de itens sem duplicacao.
+     * Planeja receitas reais sobre uma copia da mochila e tenta novamente por ate 60 segundos.
+     * Nao retira itens remotamente de baus.
      */
     public void executeAutonomousCraft(ServerPlayer owner, String rawItemName, int count) {
-        if (count <= 0) count = 1;
-        String query = rawItemName.toLowerCase(Locale.ROOT).trim();
-        String targetItem = resolveRecipeName(query);
-
-        Item itemObj = getItemByRecipeId(targetItem);
-        if (itemObj == null) {
-            speakToOwner("Item desconhecido ou receita nao suportada: '" + rawItemName + "'. Operacao cancelada.");
+        if (owner == null || !owner.getUUID().equals(ownerUuid) || rawItemName == null) return;
+        String name = resolveRecipeName(rawItemName.toLowerCase(Locale.ROOT).trim());
+        Item item = getItemByRecipeId(name);
+        if (item == null) {
+            net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.tryParse(name);
+            if (id != null) item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(id);
+        }
+        if (item == null || item == Items.AIR || count < 1 || count > 64) {
+            speakToOwner("Receita ou quantidade invalida / Invalid recipe or quantity (1-64).");
             return;
         }
-
-        // 1. Entrega primeiro o que ja esta pronto, mantendo a quantidade pedida exata.
-        // Se so houver parte disponivel, a fabricacao continua apenas para o restante.
-        int remainingCount = count;
-        int availableInBag = countItemInInventory(itemObj);
-        if (availableInBag > 0) {
-            int takenFromBag = Math.min(availableInBag, remainingCount);
-            deliverItemToOwner(owner, withdrawItemFromInventory(itemObj, takenFromBag));
-            remainingCount -= takenFromBag;
-            if (remainingCount == 0) {
-                speakToOwner("Ja tinha " + takenFromBag + " " + rawItemName + " prontos na bolsa e entreguei para voce.");
-                return;
-            }
-        }
-
-        // 2. Verifica no bau designado (respeitando protecao de claim)
-        BlockPos chestPos = CompanionManager.getDesignatedChest(this.ownerUuid);
-        if (chestPos != null) {
-            if (!checkCanInteractBlock(chestPos)) {
-                speakToOwner("Nao tenho permissao para acessar o bau designado nesta area protegida!");
-            } else if (this.level().getBlockEntity(chestPos) instanceof Container chest) {
-                int inChest = withdrawItemFromContainer(chest, itemObj, remainingCount);
-                if (inChest > 0) {
-                    deliverItemToOwner(owner, new ItemStack(itemObj, inChest));
-                    speakToOwner("Peguei " + inChest + " " + rawItemName + " do nosso bau designado e entreguei para voce!");
-                    remainingCount -= inChest;
-                    if (remainingCount == 0) return;
-                }
-            }
-        }
-
-        // 3. Calcula ingredientes necessarios para fabricacao
-        int logsNeeded = calculateLogsNeeded(targetItem, remainingCount);
-        int cobbleNeeded = calculateCobbleNeeded(targetItem, remainingCount);
-        int wheatNeeded = calculateWheatNeeded(targetItem, remainingCount);
-
-        // Se faltar na bolsa, tenta retirar ingredientes do bau designado
-        if (chestPos != null && checkCanInteractBlock(chestPos) && this.level().getBlockEntity(chestPos) instanceof Container chest) {
-            if (logsNeeded > 0 && countLogsInInventory() < logsNeeded) {
-                int missing = logsNeeded - countLogsInInventory();
-                withdrawItemTagFromContainer(chest, ItemTags.LOGS, missing);
-            }
-            if (cobbleNeeded > 0 && countCobbleInInventory() < cobbleNeeded) {
-                int missing = cobbleNeeded - countCobbleInInventory();
-                withdrawItemFromContainer(chest, Items.COBBLESTONE, missing);
-            }
-            if (wheatNeeded > 0 && countWheatInInventory() < wheatNeeded) {
-                int missing = wheatNeeded - countWheatInInventory();
-                withdrawItemFromContainer(chest, Items.WHEAT, missing);
-            }
-        }
-
-        boolean hasWood = logsNeeded == 0 || countLogsInInventory() >= logsNeeded;
-        boolean hasStone = cobbleNeeded == 0 || countCobbleInInventory() >= cobbleNeeded;
-        boolean hasWheat = wheatNeeded == 0 || countWheatInInventory() >= wheatNeeded;
-
-        if (!hasWood) {
-            this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = remainingCount;
-            setMode(CompanionMode.WOOD);
-            speakToOwner("Falta madeira (" + countLogsInInventory() + "/" + logsNeeded + " troncos). Vou coletar na floresta agora para fabricar seu " + rawItemName + "!");
-            return;
-        } else if (!hasStone) {
-            this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = remainingCount;
-            setMode(CompanionMode.MINE);
-            speakToOwner("Falta pedra (" + countCobbleInInventory() + "/" + cobbleNeeded + " pedras). Vou minerar agora para fabricar seu " + rawItemName + "!");
-            return;
-        } else if (!hasWheat) {
-            this.pendingCraftItem = targetItem;
-            this.pendingCraftCount = remainingCount;
-            setMode(CompanionMode.FARM);
-            speakToOwner("Falta trigo (" + countWheatInInventory() + "/" + wheatNeeded + " trigos). Vou cultivar na fazenda agora para fabricar seu " + rawItemName + "!");
-            return;
-        }
-
-        // 4. Se os materiais estao disponiveis, fabrica atomicamente
-        craftAndDeliver(owner, targetItem, remainingCount);
+        boolean crafted = com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, item, count);
+        pendingCraftItem = crafted ? null : item;
+        pendingCraftCount = count;
+        pendingCraftUntil = this.tickCount + 1200;
+        nextCraftRetry = this.tickCount + 40;
+        speakToOwner(crafted
+                ? "Fabricado e guardado na mochila / Crafted and stored: " + name
+                : "Faltam ingredientes, espaco ou receita suportada / Missing ingredients, space or supported recipe: " + name);
     }
 
     private boolean checkPendingCraftFulfillment(ServerPlayer owner) {
-        if (pendingCraftItem == null) return false;
-
-        int count = pendingCraftCount > 0 ? pendingCraftCount : 1;
-        int logsNeeded = calculateLogsNeeded(pendingCraftItem, count);
-        int cobbleNeeded = calculateCobbleNeeded(pendingCraftItem, count);
-        int wheatNeeded = calculateWheatNeeded(pendingCraftItem, count);
-
-        boolean canCraft = (logsNeeded == 0 || countLogsInInventory() >= logsNeeded)
-                && (cobbleNeeded == 0 || countCobbleInInventory() >= cobbleNeeded)
-                && (wheatNeeded == 0 || countWheatInInventory() >= wheatNeeded);
-
-        if (canCraft) {
-            String item = pendingCraftItem;
+        if (pendingCraftItem == null || this.tickCount < nextCraftRetry) return false;
+        nextCraftRetry = this.tickCount + 40;
+        if (this.tickCount > pendingCraftUntil) {
             pendingCraftItem = null;
-            pendingCraftCount = 0;
-            craftAndDeliver(owner, item, count);
-            setMode(CompanionMode.FOLLOW);
+            speakToOwner("Fabricacao pausada: confira bancada e materiais / Craft paused: check workbench and materials.");
+            return false;
+        }
+        if (com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, pendingCraftItem, pendingCraftCount)) {
+            pendingCraftItem = null;
+            finishWork();
+            speakToOwner("Fabricado e guardado na mochila / Crafted and stored in my bag.");
             return true;
         }
         return false;
-    }
-
-    private void craftAndDeliver(ServerPlayer owner, String targetItem, int count) {
-        Item itemObj = getItemByRecipeId(targetItem);
-        if (itemObj == null) {
-            speakToOwner("Item desconhecido ou receita nao suportada: '" + targetItem + "'. Operacao cancelada.");
-            return;
-        }
-
-        int logsNeeded = calculateLogsNeeded(targetItem, count);
-        int cobbleNeeded = calculateCobbleNeeded(targetItem, count);
-        int wheatNeeded = calculateWheatNeeded(targetItem, count);
-
-        // Pre-flight check de atomicidade
-        if (logsNeeded > 0 && countLogsInInventory() < logsNeeded) {
-            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
-            return;
-        }
-        if (cobbleNeeded > 0 && countCobbleInInventory() < cobbleNeeded) {
-            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
-            return;
-        }
-        if (wheatNeeded > 0 && countWheatInInventory() < wheatNeeded) {
-            speakToOwner("Materiais insuficientes para fabricar " + count + " " + targetItem + ".");
-            return;
-        }
-
-        // Consome ingredientes estritamente na quantidade requerida
-        if (logsNeeded > 0) consumeLogs(logsNeeded);
-        if (cobbleNeeded > 0) consumeCobblestone(cobbleNeeded);
-        if (wheatNeeded > 0) consumeWheat(wheatNeeded);
-
-        // Produz e entrega com destino unico: NUNCA adiciona em ambos!
-        ItemStack crafted = new ItemStack(itemObj, count);
-        if (owner != null && owner.isAlive() && owner.level() == this.level()) {
-            deliverItemToOwner(owner, crafted);
-            speakToOwner("Fabriquei " + count + " " + targetItem + " e entreguei para voce!");
-        } else {
-            this.getInventory().add(crafted);
-            speakToOwner("Fabriquei " + count + " " + targetItem + " e guardei na minha bolsa.");
-        }
-    }
-
-    private int calculateLogsNeeded(String recipeId, int count) {
-        return switch (recipeId) {
-            case "oak_planks", "planks" -> (count + 3) / 4;
-            case "stick" -> (count + 7) / 8;
-            case "crafting_table" -> count;
-            case "chest" -> count * 2;
-            case "wooden_pickaxe", "wooden_axe" -> count * 2;
-            case "wooden_sword" -> Math.max(1, count);
-            case "torch" -> Math.max(1, (count + 7) / 8);
-            default -> 0;
-        };
-    }
-
-    private int calculateCobbleNeeded(String recipeId, int count) {
-        return switch (recipeId) {
-            case "stone_pickaxe" -> count * 3;
-            case "stone_sword" -> count * 2;
-            case "furnace" -> count * 8;
-            default -> 0;
-        };
-    }
-
-    private int calculateWheatNeeded(String recipeId, int count) {
-        return switch (recipeId) {
-            case "bread" -> count * 3;
-            default -> 0;
-        };
     }
 
     private String resolveRecipeName(String query) {
@@ -1233,121 +1403,7 @@ public class CompanionServerPlayer extends ServerPlayer {
         return total;
     }
 
-    private int countCobbleInInventory() {
-        int total = 0;
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && (stack.is(Items.COBBLESTONE) || stack.is(Items.STONE))) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
-
-    private int countWheatInInventory() {
-        int total = 0;
-        for (int i = 0; i < 36; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.is(Items.WHEAT)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
-
-    private net.minecraft.tags.TagKey<Item> ItemTags_LOGS() {
-        return net.minecraft.tags.ItemTags.LOGS;
-    }
-
-    private void consumeLogs(int amount) {
-        int needed = amount;
-        for (int i = 0; i < 36 && needed > 0; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && (stack.is(ItemTags_LOGS()) || stack.getItem().getDescriptionId().contains("log"))) {
-                int toTake = Math.min(needed, stack.getCount());
-                stack.shrink(toTake);
-                needed -= toTake;
-            }
-        }
-    }
-
-    private void consumeCobblestone(int amount) {
-        int needed = amount;
-        for (int i = 0; i < 36 && needed > 0; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && (stack.is(Items.COBBLESTONE) || stack.is(Items.STONE))) {
-                int toTake = Math.min(needed, stack.getCount());
-                stack.shrink(toTake);
-                needed -= toTake;
-            }
-        }
-    }
-
-    private void consumeWheat(int amount) {
-        int needed = amount;
-        for (int i = 0; i < 36 && needed > 0; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.is(Items.WHEAT)) {
-                int toTake = Math.min(needed, stack.getCount());
-                stack.shrink(toTake);
-                needed -= toTake;
-            }
-        }
-    }
-
-    private ItemStack withdrawItemFromInventory(Item item, int count) {
-        int needed = count;
-        int taken = 0;
-        for (int i = 0; i < 36 && needed > 0; i++) {
-            ItemStack stack = this.getInventory().getItem(i);
-            if (!stack.isEmpty() && stack.is(item)) {
-                int toTake = Math.min(needed, stack.getCount());
-                stack.shrink(toTake);
-                needed -= toTake;
-                taken += toTake;
-            }
-        }
-        return new ItemStack(item, taken);
-    }
-
-    private void deliverItemToOwner(ServerPlayer owner, ItemStack stack) {
-        if (owner == null || stack == null || stack.isEmpty()) return;
-        if (!owner.getInventory().add(stack)) {
-            owner.drop(stack, false);
-        }
-    }
-
-    private int withdrawItemFromContainer(Container container, Item item, int maxCount) {
-        int retrieved = 0;
-        for (int i = 0; i < container.getContainerSize() && retrieved < maxCount; i++) {
-            ItemStack stack = container.getItem(i);
-            if (!stack.isEmpty() && stack.is(item)) {
-                int toTake = Math.min(maxCount - retrieved, stack.getCount());
-                stack.shrink(toTake);
-                retrieved += toTake;
-            }
-        }
-        if (retrieved > 0) {
-            container.setChanged();
-        }
-        return retrieved;
-    }
-
-    private int withdrawItemTagFromContainer(Container container, net.minecraft.tags.TagKey<Item> tag, int maxCount) {
-        int retrieved = 0;
-        for (int i = 0; i < container.getContainerSize() && retrieved < maxCount; i++) {
-            ItemStack stack = container.getItem(i);
-            if (!stack.isEmpty() && stack.is(tag)) {
-                int toTake = Math.min(maxCount - retrieved, stack.getCount());
-                stack.shrink(toTake);
-                retrieved += toTake;
-            }
-        }
-        if (retrieved > 0) {
-            container.setChanged();
-        }
-        return retrieved;
-    }
+    private net.minecraft.tags.TagKey<Item> ItemTags_LOGS() { return ItemTags.LOGS; }
 
     public void lookAtEntity(net.minecraft.world.entity.Entity target) {
         if (target == null) return;
@@ -1360,9 +1416,10 @@ public class CompanionServerPlayer extends ServerPlayer {
         double dXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
         float targetYaw = (float) (Mth.atan2(diff.z, diff.x) * (180.0 / Math.PI)) - 90.0F;
         float targetPitch = (float) (-(Mth.atan2(diff.y, dXZ) * (180.0 / Math.PI)));
-        this.setYRot(targetYaw);
-        this.setXRot(targetPitch);
-        this.setYHeadRot(targetYaw);
+        float yaw = Mth.approachDegrees(this.getYRot(), targetYaw, 12.0f);
+        this.setYRot(yaw);
+        this.setXRot(Mth.approachDegrees(this.getXRot(), targetPitch, 8.0f));
+        this.setYHeadRot(yaw);
     }
 
     public void speakToOwner(String message) {
@@ -1413,7 +1470,7 @@ public class CompanionServerPlayer extends ServerPlayer {
         // 5. Teleporte seguro com conservacao de movimento e atualizacao de estado
         this.teleportTo(owner.serverLevel(), safePos.getX() + 0.5D, safePos.getY(), safePos.getZ() + 0.5D, owner.getYRot(), owner.getXRot());
         this.setDeltaMovement(0, 0, 0);
-        this.setMode(CompanionMode.FOLLOW);
+        this.finishWork();
         this.targetWorkPos = null;
         this.workBreakTicks = 0;
         this.lastRecallGameTime = currentGameTime;
@@ -1461,6 +1518,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     public void dismiss() {
+        if (isAlive()) saveEquipmentCheckpoint();
         if (this.server != null && this.server.getPlayerList() != null) {
             this.server.getPlayerList().broadcastSystemMessage(
                     Component.literal(this.getName().getString() + " saiu do jogo"),
@@ -1471,6 +1529,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     public void dismissSilent() {
+        if (isAlive()) saveEquipmentCheckpoint();
         if (this.server != null && this.server.getPlayerList() != null) {
             this.server.getPlayerList().remove(this);
         }
@@ -1487,6 +1546,17 @@ public class CompanionServerPlayer extends ServerPlayer {
     public void setMode(CompanionMode mode) {
         if (mode != null) {
             this.mode = mode;
+            this.autonomous = mode == CompanionMode.WORK;
+            if (mode == CompanionMode.STAY) this.pendingCraftItem = null;
+            this.targetWorkPos = null;
+            this.workBreakTicks = 0;
+            this.localPath = java.util.Collections.emptyList();
+            this.nextPathTick = 0;
+            this.perceptionTicks = 0;
+            this.stairSteps = 0;
+            this.stairApproachTicks = 0;
+            this.stairDestination = null;
+            this.miningDirection = null;
             if (dataEntity != null) {
                 dataEntity.setMode(mode);
             }

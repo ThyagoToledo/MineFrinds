@@ -27,6 +27,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.GameType;
 
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -53,12 +54,18 @@ public class CompanionManager {
     private static final Map<UUID, Long> REVISIONS_BY_OWNER = new ConcurrentHashMap<>();
     private static final Map<UUID, Set<UUID>> REQUESTS_BY_OWNER = new ConcurrentHashMap<>();
     private static final int MAX_REQUEST_HISTORY = 32;
-    private static final InferenceSupervisor INFERENCE_SUPERVISOR = new InferenceSupervisor(
-            Boolean.parseBoolean(System.getProperty("companions.ai.enabled", "false")),
-            System.getProperty("companions.ai.endpoint", "http://127.0.0.1:8080/v1/chat/completions"),
-            1500,
-            8
-    );
+    private static InferenceSupervisor INFERENCE_SUPERVISOR = new InferenceSupervisor(false, (String) null, 10000, 8);
+
+    private static InferenceSupervisor loadInference() {
+        return com.thyagotoledo.companions.core.ai.InferenceSettings.load(
+                net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get().resolve("companions-ai.properties"));
+    }
+
+    public static void startInference() {
+        clearAll();
+        INFERENCE_SUPERVISOR.shutdown();
+        INFERENCE_SUPERVISOR = loadInference();
+    }
 
     public static void setDesignatedChest(UUID ownerUuid, net.minecraft.core.BlockPos pos) {
         setDesignatedChest(ownerUuid, pos, null);
@@ -385,6 +392,8 @@ public class CompanionManager {
         // Adiciona a PlayerList (dispara broadcast "<Nome> entrou no jogo" e adiciona no Tab)
         CommonListenerCookie cookie = new CommonListenerCookie(profile, 0, clientInfo, false);
         server.getPlayerList().placeNewPlayer(fakeConn, fakePlayer, cookie);
+        fakePlayer.setGameMode(GameType.SURVIVAL);
+        fakePlayer.restoreEquipmentCheckpoint();
 
         FAKE_PLAYERS_BY_OWNER.put(ownerUuid, fakePlayer);
 
@@ -487,6 +496,8 @@ public class CompanionManager {
 
         CommonListenerCookie cookie = new CommonListenerCookie(newProfile, 0, clientInfo, false);
         server.getPlayerList().placeNewPlayer(fakeConn, newBot, cookie);
+        newBot.setGameMode(GameType.SURVIVAL);
+        newBot.restoreEquipmentCheckpoint();
 
         FAKE_PLAYERS_BY_OWNER.put(ownerUuid, newBot);
 
@@ -513,6 +524,10 @@ public class CompanionManager {
             return;
         }
 
+        if (skinName.equalsIgnoreCase("Rimuru")) {
+            profile.getProperties().put("companions_preset", new Property("companions_preset", "rimuru"));
+            return; // Rendered by the client preset renderer; never use the unrelated Rimuru account.
+        }
         // Verifica catalogo de presets de anime
         if (SkinPresetCatalog.hasPreset(skinName)) {
             SkinPresetCatalog.PresetSkin preset = SkinPresetCatalog.getPreset(skinName);
@@ -611,6 +626,14 @@ public class CompanionManager {
     }
 
     public static void shutdownInference() {
+        for (CompanionServerPlayer player : FAKE_PLAYERS_BY_OWNER.values()) if (player.isAlive()) player.saveEquipmentCheckpoint();
         INFERENCE_SUPERVISOR.shutdown();
+    }
+
+    public static String inferenceStatus() {
+        var metrics = INFERENCE_SUPERVISOR.getMetrics();
+        return "IA: " + (INFERENCE_SUPERVISOR.isAvailable() ? "habilitada (endpoint nao verificado)" : "indisponivel/desativada")
+                + " | HTTP OK=" + metrics.getSuccesses() + " falhas=" + metrics.getFailures()
+                + " fila=" + INFERENCE_SUPERVISOR.getPendingQueueSize();
     }
 }

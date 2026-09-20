@@ -43,7 +43,7 @@ public class NeoForgeCompanionTests {
     @DisplayName("P7 - Validar metadados da plataforma NeoForge 1.21.1")
     void testModMetadataAndLoader() {
         assertEquals("companions", CompanionsNeoForgeMod.MODID);
-        assertEquals("0.1.0-1.21.1", CompanionsNeoForgeMod.VERSION);
+        assertEquals("0.2.0-alpha.2-1.21.1", CompanionsNeoForgeMod.VERSION);
         assertEquals("neoforge", CompanionsNeoForgeMod.LOADER);
         assertEquals("1.21.1", CompanionsNeoForgeMod.MINECRAFT_VERSION);
     }
@@ -332,7 +332,7 @@ public class NeoForgeCompanionTests {
         // Salva para CompoundTag
         CompoundTag tag = savedData.save(new CompoundTag(), null);
         assertNotNull(tag);
-        assertEquals(1, tag.getInt("schema_version"));
+        assertEquals(2, tag.getInt("schema_version"));
         assertTrue(tag.contains("Chests", 10));
         assertTrue(tag.contains("Companions", 10));
 

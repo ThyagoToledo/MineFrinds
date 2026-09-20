@@ -17,20 +17,30 @@ import net.neoforged.bus.api.SubscribeEvent;
 public class CompanionsNeoForgeMod {
 
     public static final String MODID = "companions";
-    public static final String VERSION = "0.1.0-1.21.1";
+    public static final String VERSION = "0.2.0-alpha.2-1.21.1";
     public static final String LOADER = "neoforge";
     public static final String MINECRAFT_VERSION = "1.21.1";
 
     public CompanionsNeoForgeMod(IEventBus modEventBus) {
         // Registro de manipuladores de comandos e eventos de jogo
         NeoForge.EVENT_BUS.register(CompanionCommands.class);
+        NeoForge.EVENT_BUS.register(this);
+        NeoForge.EVENT_BUS.register(com.thyagotoledo.companions.neoforge.service.RemoteViewService.class);
 
         // Registro de ouvintes client-side (GUI, atalho de tecla e botao de inventario estilo FTB)
-        NeoForge.EVENT_BUS.register(CompanionsClientEvents.class);
         if (modEventBus != null) {
-            modEventBus.addListener(CompanionsClientEvents::onRegisterKeyMappings);
             modEventBus.addListener(NeoForgeCompanionPayloads::onRegisterPayloadHandlers);
+            if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+                NeoForge.EVENT_BUS.register(CompanionsClientEvents.class);
+                modEventBus.addListener(CompanionsClientEvents::onRegisterKeyMappings);
+                modEventBus.addListener(CompanionsClientEvents::onAddLayers);
+            }
         }
+    }
+
+    @SubscribeEvent
+    public void onServerStarting(net.neoforged.neoforge.event.server.ServerStartingEvent event) {
+        com.thyagotoledo.companions.neoforge.entity.CompanionManager.startInference();
     }
 
     @SubscribeEvent

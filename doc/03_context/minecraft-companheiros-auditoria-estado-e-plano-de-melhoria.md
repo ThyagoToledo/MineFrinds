@@ -8,7 +8,7 @@ status: auditoria-estatica-e-build-concluidos-jogabilidade-pendente
 
 ## Escopo e evidência
 
-Captura inicial da auditoria em 19/09/2026 sobre o checkout `C:/Users/thyag/Projects/minecraft-companheiros`, o documento [[minecraft-companheiros-documentacao-geral-arquitetura-e-funcionalidades]], os JARs distribuídos e o `latest.log` da instância `TesteMineFrinds`. Os incrementos posteriores estão registrados ao final deste documento; nenhum save ou modpack foi alterado.
+Captura inicial da auditoria em 19/09/2026 sobre o checkout `C:/Users/thyag/Projects/minecraft-companheiros`, o documento [[minecraft-companheiros-documentacao-geral-arquitetura-e-funcionalidades]], os JARs distribuídos e o `latest.log` da instância `TesteMineFrinds`. Os incrementos posteriores estão registrados ao final deste documento; a fotografia inicial era somente leitura; instalações posteriores na instância de teste estão registradas nos incrementos abaixo.
 
 Evidência obtida:
 
@@ -229,3 +229,55 @@ O estado correto permanece: R0, R1, R2 e R3 avançaram, mas continuam parciais; 
 O fake player não dependia mais somente do raio imediato do próprio corpo. A implementação agora mantém uma `pendingDropCollectionBox` por 100 ticks após cada quebra de madeira, minério ou safra, revisitando a área a cada cinco ticks. A caixa é unida durante o corte em cascata, então os drops de troncos altos também entram na coleta depois do pickup delay normal. O código contabiliza a diferença da pilha antes/depois de `Inventory.add`, preservando a parte que não couber quando o inventário estiver cheio.
 
 A suíte NeoForge passou após a alteração e um novo candidato foi gerado. O JAR instalado em `TesteMineFrinds` agora tem SHA-256 `6CE2D1F8649E82081B7DF185DD2E402CE692E8FB6E44D1655F7CC971A6CA0744`.
+
+
+## Jogabilidade, IA local e controle remoto — 20/09/2026 — alpha.2
+
+Escopo desta entrega: implementação no NeoForge 1.21.1 (`TesteMineFrinds`), com regressão do núcleo compartilhado. Não representa paridade de jogabilidade com Forge 1.20.1/1.12.2 nem encerramento dos R0–R5.
+
+### Causas encontradas e correções
+
+- A inferência estava desabilitada por padrão, sem configuração por instância. Agora `InferenceSettings` lê `config/companions-ai.properties` através de `FMLPaths.CONFIGDIR`; o supervisor é recriado ao iniciar cada servidor. Comandos continuam funcionando quando o endpoint cai, com aviso explícito na conversa. `/companion ai` mostra disponibilidade lógica e contadores HTTP, sem fingir que houve health check.
+- Memória de conversa era gravada, mas não enviada ao modelo. O prompt inclui as entradas recentes, idioma do cliente, modo e até 12 entradas do inventário atualizado. HTTP solicita JSON com `CASUAL_CHAT` e desliga thinking. O modelo conversa; ações de mundo continuam sob a política determinística.
+- Os reconhecedores confundiam palavras no meio de frases: “para sobreviver” virava STAY e “mina” podia capturar texto de conversa. Ordens motoras foram delimitadas. Foram preservadas formas educadas simples.
+- Seguir/parar deixaram de encarar continuamente o dono: olhar ocioso alterna entre ambiente e dono, com rotação gradual. Navegação local usa busca terrestre limitada a 256 expansões e raio de 12 blocos, sem carregar chunks. Não é navegação completa de sobrevivência.
+- `/companion mode auto` ativa uma política inicial: madeira, bancada, picareta, coleta e tentativas de melhorar equipamento com as receitas e ingredientes disponíveis. As tarefas têm limites; não há agente irrestrito executando ações do LLM.
+- Mineração busca blocos vistos por raycast dentro do cone de visão, varre o entorno antes de decidir e considera tags comuns de minério/pedra. Seleciona ferramenta pelo contrato real de drops/velocidade e usa `gameMode.destroyBlock`, durabilidade e progresso de quebra. Pode tentar descida em degraus por até seis passos, com apoio e vizinhança sem fluidos. Não cava diretamente sob os próprios pés.
+- `RecipeCraftingService` usa receitas shaped/shapeless carregadas pelo `RecipeManager`, planeja em cópias, preserva sobras/recipientes e só escreve a mochila após concluir a cadeia inteira. Receitas 3×3 exigem bancada próxima. Limites: profundidade 4, orçamento 256, até 8 alternativas por ingrediente. Pedidos incompletos são tentados novamente por até 60 segundos; não retiram ingredientes remotamente de baús.
+- Combate mantém alvo, respeita cooldown de ataque, prioriza hostis próximos ao dono e interrompe a tarefa. Ao acabar, a tarefa continua. Inclui `Enemy`, categoria MONSTER e mobs mirando dono/NPC; aliados e neutros não agressivos são excluídos. Ficar parado não autoriza perseguição.
+- `EquipmentPolicy` usa atributos reais de dano/velocidade, armadura/toughness/knockback, condição e um pequeno desempate por encantamento. Ferramentas usam capacidade real de colher. Evita trocas por nome de material e troca itens sem descartar os anteriores. A avaliação não compreende todos os efeitos mágicos/encantamentos de mods.
+- Inventário do NPC continua acessível por `/companion inventory`; corrige a duplicação visual da mão principal, bloqueia slots vazios decorativos e restringe acesso ao dono. Alimentação passa pelo uso normal do alimento, sem cura instantânea inventada.
+- O NPC é forçado a survival após carregar dados. Keep inventory é próprio do NPC, sem alterar gamerule global. Mochila, armadura, offhand, slot selecionado e XP são salvos por dono no overworld (schema 2), inclusive antes da morte, ao dispensar e ao parar o servidor. `/companion spawn` restaura o checkpoint. Não há promessa de respawn automático.
+
+### Rimuru e visão remota
+
+A textura antiga era da conta Mojang “Rimuru”, não uma identificação confiável do personagem. O preset NeoForge agora usa um marcador próprio no GameProfile e renderer de cliente, com cache separado `rimuru_demonlord_v1.png` para não reaproveitar a imagem antiga.
+
+Fonte da textura: [Rimuru Tempest Demon Lord, por Thetrees21](https://www.minecraftskins.com/skin/21145839/rimuru-tempest-demon-lord/). PNG 64×64, modelo clássico, inspecionado localmente. Para assegurar funcionamento offline imediato, carregamento sem atraso e proteção contra bloqueios de rede, a textura foi empacotada diretamente nos assets do mod (`assets/companions/textures/entity/rimuru_demonlord_v1.png`) com fallback instantâneo no renderer do cliente. Os demais presets por conta ainda exigem revisão visual. A substituição cobre o renderer do personagem; não foi homologada em todas as camadas visuais de outros mods.
+
+O botão Visão Remota abre escolha entre observar e controlar. Comandos: `/companion view observe`, `/companion view control`, `/companion view exit`. Shift sai. Observar coloca o jogador em espectador e guarda posição, dimensão, rotação e modo anteriores. Ao sair, restaura o estado. Durante a sessão, o corpo do jogador acompanha a câmera pelo mecanismo vanilla; a posição original é o ponto de retorno, não um corpo físico deixado no local.
+
+Controlar mantém o NPC em survival e transmite WASD, mira, salto, ataque, uso e seleção dos slots 1–9. Inputs têm nonce de sessão, sequência e validação de números/limites; o servidor aplica alcance, quebra e interação. HUD mostra vida e equipamento do NPC. E permite inspecionar a mochila. A sessão encerra diante de morte, remoção, troca de dimensão, logout ou timeout de controle. Um ponto de retorno fica no NBT persistente do jogador para recuperação no login após interrupção.
+
+### Evidência e limites
+
+- Testes JVM: core 31, Forge 1.20.1 15, NeoForge 1.21.1 33, Forge 1.12.2 5. Total esperado desta revisão: 84; conferir relatórios XML do build final antes da publicação.
+- Novos testes cobrem roteamento de conversa, memória/idioma do prompt, cadeia de receitas, falta de insumos/espaço sem mutação, bancada, recipientes restantes, ciclos, atributos de equipamento, checkpoint NBT sem alias e codec/limites de controle remoto.
+- Testes de receitas usam bootstrap Minecraft e receitas construídas em JVM; o recurso de idioma vazio existe **somente em test/resources**, pois o JAR de desenvolvimento não inclui assets vanilla. Não são GameTests nem validação em mundo ativo.
+- Teste real do `HybridDialogueProvider` → `InferenceSupervisor` → HTTP → llama-server: Qwen2.5 0,5B falhou semanticamente e no formato; Qwen3 0,6B Q4_K_M devolveu CASUAL_CHAT em português e inglês. Última amostra: 1.220 ms / 900 ms e working set do processo de 821.567.488 bytes (~784 MiB). Uma amostra anterior foi ~591 MiB. Isso não mede pico nem memória adicional do mod dentro do jogo.
+- Runtime local: `tools/start-local-ai.ps1`, contexto 2048, um slot, quatro threads CPU e zero camadas GPU. O script foi executado e respondeu health `ok`; configuração de exemplo está em `config/companions-ai.properties.example`. Não inicia automaticamente após reiniciar o computador.
+- Binário e protocolo recebem versão nova: mod `0.2.0-alpha.2-1.21.1`, protocolo NeoForge `1.1.0`. Instâncias antigas precisam do mesmo JAR no cliente/servidor.
+- Ainda pendentes: teste visual/jogável com cliente aberto, claims reais, morte/retorno/câmera em LAN, profiling de MSPT/heap/working set, fundição e máquinas de modpacks, receitas especiais, planejamento completo de sobrevivência e navegação de longo alcance. O LLM pequeno continua sujeito a respostas fracas; JSON válido não comprova conhecimento do modpack.
+
+### Próximo QA executável
+
+Responsável: próxima sessão de QA do projeto, em save descartável do `TesteMineFrinds`. Não modificar saves pessoais para homologação.
+
+1. Atualizar a skin com `/skin Rimuru`; conferir corpo, braços, armadura e troca de skin durante observação.
+2. Testar `auto` a partir de mochila vazia perto de árvore; conferir bancada/picareta e conservação exata dos itens.
+3. Minerar pedra/carvão/ferro e minério de mod: bloquear minério atrás de parede, trocar ferramenta insuficiente, observar degraus, água/lava e caminho sem apoio.
+4. Colocar zumbi e slime perto do dono enquanto trabalha: conferir prioridade, cooldown, todos os alvos, retomada e respeito ao modo stay.
+5. Abrir mochila, inserir/remover equipamento e usar shift-click: sem duplicação da mão principal e sem perda nos espaços não editáveis.
+6. Matar o NPC com gamerule keepInventory global false e convocá-lo de novo: conferir mochila, armadura, offhand e XP, inclusive após salvar/reabrir.
+7. Observar e controlar: testar WASD/mouse, slots 1–9/roda, uso, alcance, Shift, inventário, desconexão, morte, mudança de skin e retorno de posição/modo.
+8. Conversar nas duas línguas, parar o runtime, reabrir mundo e conferir fallback/reativação; medir 1/4/8 NPCs antes de afirmar cumprimento de 1 GB normal e 2 GB pico.

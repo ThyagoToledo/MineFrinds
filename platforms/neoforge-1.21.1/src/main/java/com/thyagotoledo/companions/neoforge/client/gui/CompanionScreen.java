@@ -238,8 +238,7 @@ public class CompanionScreen extends Screen {
 
         // Linha 3
         addRenderableWidget(Button.builder(Component.literal("Visao Remota"), b -> {
-                    sendOrder("/companion view");
-                    this.onClose();
+                    if (this.minecraft != null) this.minecraft.setScreen(new RemoteViewScreen(this));
                 })
                 .bounds(col1, top + 94, btnW, btnH)
                 .tooltip(Tooltip.create(Component.literal("Visualiza pelos olhos do companheiro (camera de vigia).")))

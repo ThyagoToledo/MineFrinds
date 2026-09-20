@@ -25,6 +25,7 @@ repositories {
 }
 
 def mcLibs = files(
+    'C:/Users/thyag/curseforge/minecraft/Install/libraries/net/neoforged/mergetool/2.0.0/mergetool-2.0.0-api.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/net/neoforged/fancymodloader/loader/4.0.44/loader-4.0.44.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/net/neoforged/bus/8.0.5/bus-8.0.5.jar',
     'C:/Users/thyag/curseforge/minecraft/Install/libraries/net/neoforged/neoforge/21.1.251/neoforge-21.1.251-universal.jar',

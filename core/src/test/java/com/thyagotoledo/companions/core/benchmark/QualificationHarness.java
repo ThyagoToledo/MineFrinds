@@ -166,7 +166,7 @@ public class QualificationHarness {
             DialogueResponse resp = provider.processSync("conte uma historia complexa", "pt_br", profile, emptyInv, 50L);
             assertNotNull(resp);
             assertEquals(IntentType.UNKNOWN_OR_BLOCKED, resp.getIntent().getType());
-            assertEquals("Nao entendi muito bem. Pode repetir?", resp.getSpeech());
+            assertTrue(resp.getSpeech().contains("IA esta indisponivel"));
         }
     }
 

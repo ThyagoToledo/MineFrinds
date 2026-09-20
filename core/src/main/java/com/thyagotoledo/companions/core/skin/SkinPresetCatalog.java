@@ -64,10 +64,10 @@ public class SkinPresetCatalog {
     private static final Map<String, PresetSkin> PRESETS = new HashMap<>();
 
     static {
-        registerSigned("Rimuru", "http://textures.minecraft.net/texture/1f36749cba76c983599a1514b0854092c30cb9c79755c9607a4077ee9cf8f76e", false,
-                "ewogICJ0aW1lc3RhbXAiIDogMTc4OTg1NTA0NDkyNywKICAicHJvZmlsZUlkIiA6ICI1MThlNzgyODIyOTc0ODk0YWYyMTJkODhhNWMwMTJjZiIsCiAgInByb2ZpbGVOYW1lIiA6ICJSaW11cnUiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMWYzNjc0OWNiYTc2Yzk4MzU5OWExNTE0YjA4NTQwOTJjMzBjYjljNzk3NTVjOTYwN2E0MDc3ZWU5Y2Y4Zjc2ZSIKICAgIH0KICB9Cn0=",
-                "Pux+msRDc1bf4jVSuA7QCiqZKZHJslmSxZtTvrjiAqWMLvQX4qug7K7JEzFTXYYVYMphz2AeKvuBFOfdKfFAPdYQPR87iphtSwvIXt8nKKh2hol3AoZ81fi10udhvPDJiljjEqWK8rxo3UO3cXdnodthRZHNUc7Poragwdg8pIg42NoA7R+h5AiRzUvKw8Vk3kPMl5S0hwooV6qSCNIlomclyJx6ZvcWPjsZl08xrwXBPaQgRtTXqCJFD/js1rAE3WiX7dgu7PIPYbzGmKigJvzuJFlpCzjZdy5fYNNkC89SWR/qS3KlcO3ycrNE2LsS48c4gm1jZtyA4XyVChYnYxVhhYbNE9bgWKBOyKk9lGOECjSefyBm3mPdwUeN9yHgjvY0uK0WOZtyUrU/VdFy9MgiZoAmNeAxXq6UW5wQCThq5iTbePNl3qtErpHAJEqGJr1VQT7T5a6CLEa1pJBs09LIc7EjMkEgVH8gpShAJ2YY9ztdt0KQnX1irt5CJ95WOQLkGxF6Mrfyfgcm3sQK16Mh5EAjI6sHE2oRN+STfbdeoh4tbJYSIMIbK8XpFJUrxtVs0VsFiRw+I/i9XEqD6o7zQoxkQ7xO0q9+mtxUGnFev+ZwWndZvysTqOzakPqfum9P0dSTO0rFWSm/YTZwLxQY3fkRBDkS9lYOU3tcTXA=",
-                "518e782822974894af212d88a5c012cf");
+        // Character texture by Thetrees21; distinct from the unrelated Mojang account named Rimuru.
+        String rimuruUrl = "https://www.minecraftskins.com/uploads/skins/2022/12/16/rimuru-tempest-demon-lord-21145839.png";
+        PRESETS.put("rimuru", new PresetSkin("Rimuru", rimuruUrl, false,
+                buildCustomTextureBase64(rimuruUrl, false), null, null));
 
         registerSigned("Goku", "http://textures.minecraft.net/texture/b43f45dba4e09732d42eaf34a7f53a69182281fd26f7850c4383a59ea6e875f5", false,
                 "ewogICJ0aW1lc3RhbXAiIDogMTc4OTg1NTA0NTYyNiwKICAicHJvZmlsZUlkIiA6ICIzOTI5ZTA1MmJhZDc0Yjc0ODE3NzRkNWJhNTkxZmJkNCIsCiAgInByb2ZpbGVOYW1lIiA6ICJHb2t1IiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2I0M2Y0NWRiYTRlMDk3MzJkNDJlYWYzNGE3ZjUzYTY5MTgyMjgxZmQyNmY3ODUwYzQzODNhNTllYTZlODc1ZjUiCiAgICB9LAogICAgIkNBUEUiIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2U3ZGZlYTE2ZGM4M2M5N2RmMDFhMTJmYWJiZDEyMTYzNTljMGNkMGVhNDJmOTk5OWI2ZTk3YzU4NDk2M2U5ODAiCiAgICB9CiAgfQp9",

@@ -374,7 +374,7 @@ public class CoreTestSuite {
         mockClient.setAvailable(false);
         DialogueResponse offlineResp = provider.processSync("conta uma historia", "pt_br", profile, emptyInv, 1000L);
         assertEquals(IntentType.UNKNOWN_OR_BLOCKED, offlineResp.getIntent().getType());
-        assertEquals("Nao entendi muito bem. Pode repetir?", offlineResp.getSpeech());
+        assertTrue(offlineResp.getSpeech().contains("IA esta indisponivel"));
 
         // 4. Fallback sob fila de inferencia cheia (>= 8)
         mockClient.setAvailable(true);

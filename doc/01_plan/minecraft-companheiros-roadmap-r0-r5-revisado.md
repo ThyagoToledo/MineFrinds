@@ -213,3 +213,10 @@ O próximo release deve usar no mínimo `0.2.0-alpha.1`, pois os JARs `0.1.0` j�
 - R2 passou a encaminhar conversa livre tipada diretamente ao provider e a descartar resposta quando a revisão do snapshot mudou.
 - R3 reduziu varreduras sem alvo com intervalos de 20 ticks para trabalho e 10 ticks para busca de monstros, além dos 4 Hz de coleta de drops.
 - O total de testes executados no ciclo atual é 74: 29 core, 15 Forge 1.20.1, 25 NeoForge 1.21.1 e 5 Forge 1.12.2.
+
+
+## Incremento de 20/09/2026 — alpha.2
+
+A entrega descrita na [[../03_context/minecraft-companheiros-auditoria-estado-e-plano-de-melhoria#Jogabilidade, IA local e controle remoto — 20/09/2026 — alpha.2|auditoria atualizada]] implementa receitas carregadas com commit sobre cópias (R0), checkpoints de equipamento e sessão de câmera (R1), configuração/ensaio real do modelo bilíngue (R2), percepção/navegação limitada e prioridades (R3), Rimuru e escolha observar/controlar (R4). R5 recebe candidato com versão própria e regressão JVM; não está homologado em jogo.
+
+A fila seguinte é QA jogável da alpha.2, correção de falhas observadas, fundição/estações e planejamento de ingredientes, adaptação a máquinas específicas, depois paridade dos outros loaders e medição formal de RAM/MSPT. O limite de memória continua sendo critério de aceitação, não resultado certificado.
