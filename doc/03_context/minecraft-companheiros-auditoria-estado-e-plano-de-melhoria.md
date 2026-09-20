@@ -249,15 +249,22 @@ Escopo desta entrega: implementação no NeoForge 1.21.1 (`TesteMineFrinds`), co
 - Inventário do NPC continua acessível por `/companion inventory`; corrige a duplicação visual da mão principal, bloqueia slots vazios decorativos e restringe acesso ao dono. Alimentação passa pelo uso normal do alimento, sem cura instantânea inventada.
 - O NPC é forçado a survival após carregar dados. Keep inventory é próprio do NPC, sem alterar gamerule global. Mochila, armadura, offhand, slot selecionado e XP são salvos por dono no overworld (schema 2), inclusive antes da morte, ao dispensar e ao parar o servidor. `/companion spawn` restaura o checkpoint. Não há promessa de respawn automático.
 
-### Rimuru e visão remota
+### Rimuru Demon Lord e resolucao de navegacao em terreno
 
-A textura antiga era da conta Mojang “Rimuru”, não uma identificação confiável do personagem. O preset NeoForge agora usa um marcador próprio no GameProfile e renderer de cliente, com cache separado `rimuru_demonlord_v1.png` para não reaproveitar a imagem antiga.
+1. Skin Rimuru Demon Lord:
+   - A textura foi atualizada para a versao autentica e detalhada de Lord Demonio (Rimuru Tempest em vestes reais Maou, capa com insignia e acabamento dourado).
+   - Utiliza a conta oficial da Mojang DemonLordRimuru (UUID `e52368f4-b5da-4556-8847-e26ae894dd86`), com assinatura criptografica oficial da Mojang (`textures.minecraft.net/texture/2e61fbaefbb68dcfd522e93452eea379ffb6ca32537bcaaa0db915373f5d85c0`) e capa oficial anexada.
+   - Textura local embutida em `assets/companions/textures/entity/rimuru_demonlord_v1.png` e replicada em `companion_skins_cache/` para suporte offline.
+   - O renderer do cliente (`CompanionPresetRenderer`) valida `player.getSkin().secure()`, permitindo renderizacao nativa da engine do Minecraft sem conflitos de pose stack ou sobreposicao de modelos.
 
-Fonte da textura: [Rimuru Tempest Demon Lord, por Thetrees21](https://www.minecraftskins.com/skin/21145839/rimuru-tempest-demon-lord/). PNG 64×64, modelo clássico, inspecionado localmente. Para assegurar funcionamento offline imediato, carregamento sem atraso e proteção contra bloqueios de rede, a textura foi empacotada diretamente nos assets do mod (`assets/companions/textures/entity/rimuru_demonlord_v1.png`) com fallback instantâneo no renderer do cliente. Os demais presets por conta ainda exigem revisão visual. A substituição cobre o renderer do personagem; não foi homologada em todas as camadas visuais de outros mods.
-
-O botão Visão Remota abre escolha entre observar e controlar. Comandos: `/companion view observe`, `/companion view control`, `/companion view exit`. Shift sai. Observar coloca o jogador em espectador e guarda posição, dimensão, rotação e modo anteriores. Ao sair, restaura o estado. Durante a sessão, o corpo do jogador acompanha a câmera pelo mecanismo vanilla; a posição original é o ponto de retorno, não um corpo físico deixado no local.
-
-Controlar mantém o NPC em survival e transmite WASD, mira, salto, ataque, uso e seleção dos slots 1–9. Inputs têm nonce de sessão, sequência e validação de números/limites; o servidor aplica alcance, quebra e interação. HUD mostra vida e equipamento do NPC. E permite inspecionar a mochila. A sessão encerra diante de morte, remoção, troca de dimensão, logout ou timeout de controle. Um ponto de retorno fica no NBT persistente do jogador para recuperação no login após interrupção.
+2. Resolucao do falso alerta de caminho inseguro e movimentacao:
+   - Causa raiz: `LocalNavigation.safe` verificava estritamente `isAir()`, rejeitando grama, flores, tochas, safras e neve, alem de exigir `isSolidRender()`, que rejeitava terra arada (farmland), caminhos de terra e lajes. Quando a rota ficava vazia, `moveToward` zerava o movimento (`setDeltaMovement(0, y, 0)`), paralisando o companheiro e disparando o timer de stall (100 ticks).
+   - Correcao de transitabilidade (`isPassable`): admite ar, blocos com caixa de colisao vazia (`getCollisionShape().isEmpty()`), agua e blocos escalaveis, bloqueando perigos (lava, fogo, cactos, arbustos de bagas, magma, rosas do wither, neve em po).
+   - Correcao de piso seguro (`isSafeFloor`): aceita blocos solidos, terra arada, caminhos de terra, lajes, escadas e agua.
+   - Algoritmo A* expandido para raio de 32 blocos, limite de 384 nós e suporte a descidas verticais de ate 2 blocos.
+   - Fallback de navegacao direta no `moveToward`: se o caminho local terminar ou estiver vazio em linha de visada, move diretamente em direcao ao alvo, com salto automatico ao detectar colisao horizontal ou desnivel de terreno e sustentacao nativa para nadar em agua.
+   - Alcance de quebra (`canReachWork`): ajustado para raycast de contorno (`OUTLINE`) e alcance direto para blocos proximos e safras sem caixa de colisao.
+   - Recuperacao de stall: ao falhar em alcancar um bloco especifico, descarta o alvo atual e busca outro nas proximidades, retornando ao modo follow apenas apos 3 falhas consecutivas comprovadas.
 
 ### Evidência e limites
 

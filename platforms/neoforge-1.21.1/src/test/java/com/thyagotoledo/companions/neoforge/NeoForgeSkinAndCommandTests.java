@@ -146,8 +146,8 @@ public class NeoForgeSkinAndCommandTests {
                 com.thyagotoledo.companions.core.skin.SkinPresetCatalog.getPreset("Rimuru");
         assertNotNull(rimuru);
         assertEquals("Rimuru", rimuru.getName());
-        assertFalse(rimuru.hasSignature());
-        assertTrue(rimuru.getTextureUrl().contains("rimuru-tempest-demon-lord"));
+        assertTrue(rimuru.hasSignature());
+        assertTrue(rimuru.getTextureUrl().contains("textures.minecraft.net"));
         assertNotNull(rimuru.getBase64Value());
         assertFalse(rimuru.getBase64Value().isEmpty());
 

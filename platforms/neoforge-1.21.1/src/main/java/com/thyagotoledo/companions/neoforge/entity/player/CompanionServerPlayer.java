@@ -90,6 +90,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private BlockPos observedWorkTarget;
     private Vec3 lastWorkPosition;
     private int stalledWorkTicks;
+    private int consecutiveStalls = 0;
     private java.util.List<BlockPos> localPath = java.util.Collections.emptyList();
     private long nextPathTick;
     private Vec3 lastPathTarget;
@@ -288,13 +289,23 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
             if (targetWorkPos != null && targetWorkPos.equals(observedWorkTarget)
                     && lastWorkPosition != null && position().distanceToSqr(lastWorkPosition) < 0.01 && workBreakTicks == 0) {
-                if (++stalledWorkTicks >= 100) {
-                    setMode(CompanionMode.FOLLOW);
-                    speakToOwner("Nao achei um caminho seguro. Aproxime-me do recurso / No safe route. Bring me closer to the resource.");
+                if (++stalledWorkTicks >= 80) {
+                    targetWorkPos = null;
                     stalledWorkTicks = 0;
-                    return;
+                    nextWorkScanTick = this.tickCount + 10;
+                    if (++consecutiveStalls >= 3) {
+                        consecutiveStalls = 0;
+                        setMode(CompanionMode.FOLLOW);
+                        speakToOwner("Recurso inacessivel. Voltando a te seguir!");
+                        return;
+                    }
                 }
-            } else stalledWorkTicks = 0;
+            } else {
+                stalledWorkTicks = 0;
+                if (targetWorkPos == null || !targetWorkPos.equals(observedWorkTarget)) {
+                    consecutiveStalls = 0;
+                }
+            }
             observedWorkTarget = targetWorkPos;
             lastWorkPosition = position();
         }
@@ -523,12 +534,19 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private boolean canReachWork(BlockPos target) {
+        if (target == null) return false;
         Vec3 end = target.getCenter();
-        if (this.getEyePosition().distanceToSqr(end) > 20) return false;
+        double distSq = this.getEyePosition().distanceToSqr(end);
+        if (distSq > 20.25) return false;
+        if (distSq <= 9.0) return true;
+        BlockState state = this.level().getBlockState(target);
+        if (state.getCollisionShape(this.level(), target).isEmpty()) {
+            return true;
+        }
         var hit = this.level().clip(new net.minecraft.world.level.ClipContext(this.getEyePosition(), end,
-                net.minecraft.world.level.ClipContext.Block.COLLIDER,
+                net.minecraft.world.level.ClipContext.Block.OUTLINE,
                 net.minecraft.world.level.ClipContext.Fluid.NONE, this));
-        return hit.getBlockPos().equals(target);
+        return hit.getType() == net.minecraft.world.phys.HitResult.Type.MISS || hit.getBlockPos().equals(target);
     }
 
     private void finishWork() {
@@ -596,21 +614,47 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void moveToward(Vec3 target, double speed) {
-        if (this.tickCount >= nextPathTick || lastPathTarget == null || lastPathTarget.distanceToSqr(target) > 4) {
-            nextPathTick = this.tickCount + 20;
+        Vec3 diff = target.subtract(this.position());
+        double horizDistSq = diff.x * diff.x + diff.z * diff.z;
+
+        if (horizDistSq < 0.16) {
+            this.setDeltaMovement(this.getDeltaMovement().x * 0.5, this.getDeltaMovement().y, this.getDeltaMovement().z * 0.5);
+            return;
+        }
+
+        if (this.tickCount >= nextPathTick || lastPathTarget == null || lastPathTarget.distanceToSqr(target) > 9.0) {
+            nextPathTick = this.tickCount + 15;
             lastPathTarget = target;
             localPath = com.thyagotoledo.companions.neoforge.service.LocalNavigation.plan(this, target);
         }
-        while (!localPath.isEmpty() && this.position().distanceToSqr(Vec3.atBottomCenterOf(localPath.get(0))) < 0.4) {
-            localPath.remove(0);
+
+        while (!localPath.isEmpty()) {
+            Vec3 waypoint = Vec3.atBottomCenterOf(localPath.get(0));
+            double wpDistSq = (this.getX() - waypoint.x) * (this.getX() - waypoint.x)
+                            + (this.getZ() - waypoint.z) * (this.getZ() - waypoint.z);
+            if (wpDistSq < 0.5 && Math.abs(this.getY() - waypoint.y) < 1.2) {
+                localPath.remove(0);
+            } else {
+                break;
+            }
         }
-        if (localPath.isEmpty() || !com.thyagotoledo.companions.neoforge.service.LocalNavigation.safe(this, localPath.get(0))) {
-            this.setDeltaMovement(0, this.getDeltaMovement().y, 0);
-            return;
+
+        Vec3 steerTarget = !localPath.isEmpty() ? Vec3.atBottomCenterOf(localPath.get(0)) : target;
+        Vec3 step = steerTarget.subtract(this.position());
+        Vec3 direction = new Vec3(step.x, 0, step.z);
+        double len = direction.length();
+        if (len > 1.0e-4) {
+            direction = direction.scale(speed / len);
+        } else {
+            direction = Vec3.ZERO;
         }
-        Vec3 step = Vec3.atBottomCenterOf(localPath.get(0)).subtract(this.position());
-        Vec3 direction = new Vec3(step.x, 0, step.z).normalize().scale(speed);
-        double vertical = this.onGround() && step.y > 0.5 ? 0.42 : this.getDeltaMovement().y;
+
+        boolean shouldJump = (this.onGround() || this.isInWater()) && (this.horizontalCollision || step.y > 0.45);
+        double vertical = shouldJump ? 0.42 : this.getDeltaMovement().y;
+        if (this.isInWater() && (target.y > this.getY() || shouldJump)) {
+            vertical = 0.15;
+        }
+
         this.setDeltaMovement(direction.x, vertical, direction.z);
     }
 

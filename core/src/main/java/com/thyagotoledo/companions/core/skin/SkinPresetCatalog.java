@@ -64,10 +64,10 @@ public class SkinPresetCatalog {
     private static final Map<String, PresetSkin> PRESETS = new HashMap<>();
 
     static {
-        // Character texture by Thetrees21; distinct from the unrelated Mojang account named Rimuru.
-        String rimuruUrl = "https://www.minecraftskins.com/uploads/skins/2022/12/16/rimuru-tempest-demon-lord-21145839.png";
-        PRESETS.put("rimuru", new PresetSkin("Rimuru", rimuruUrl, false,
-                buildCustomTextureBase64(rimuruUrl, false), null, null));
+        registerSigned("Rimuru", "http://textures.minecraft.net/texture/2e61fbaefbb68dcfd522e93452eea379ffb6ca32537bcaaa0db915373f5d85c0", false,
+                "ewogICJ0aW1lc3RhbXAiIDogMTcwMzQzNzI3ODc0MywKICAicHJvZmlsZUlkIiA6ICJlNTIzNjhmNGI1ZGE0NTU2ODg0N2UyNmFlODk0ZGQ4NiIsCiAgInByb2ZpbGVOYW1lIiA6ICJEZW1vbkxvcmRSaW11cnUiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMmU2MWZiYWVmYmI2OGRjZmQ1MjJlOTM0NTJlZWEzNzlmZmI2Y2EzMjUzN2JjYWFhMGRiOTE1MzczZjVkODVjMCIKICAgIH0sCiAgICAiQ0FQRSIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMjM0MGMwZTAzZGQyNGExMWIxNWE4YjMzYzJhN2U5ZTMyYWJiMjA1MWIyNDgxZDBiYTdkZWZkNjM1Y2E3YTkzMyIKICAgIH0KICB9Cn0=",
+                "WJggIdxXWNu7hOfRDtNcaJIkAbhJHTUFPvWdw80wLAudMot5uattqXWK19iHpoMpZVfNxbl1iK6DehQ+nSzpix2xl0FEH1Qu33TGFtoU+uv79+P/jMZLbeUvTHhUpNQ8jkEzy+/aWPQZoB3n2Z+PZ1Ll2Yi/eot68SArrf0QzXK5qXpHXYGlJFz0o1MjRDNwPuA3E3smCoydbyH5kjSCzrlmjOOYKi1r0+eEoBycLnL57bw3lS2LSQl00q8L1nPpWkqRpdcjrzxsRgFJ66y3NQp43tGE7VTbXl5wS/DSOYS4zK113tIzRVI1XYDEveF17OTpLFz3NyJcJ3LYm3cFRl+ISEzOFZnpDaNM/D5FxoQUWYYwpXhP3iSbSEOBlShNKIVY5TOvOrQcpiIv+9mcud0AkpLKQe/i8iqK/v9/eaRF7+ER6A24ORx4fNT3jCCv2HOLjj8Y5rGNwsQHpckURKNruIW4eODMK26seJONyHuxQfo9VG/7SMkTa2Ul5vZIVcpwhTWkfxmlKTQ2Z+BtKdDo4UcoC0N1l4R2FaJN5kipS03iQROjN6UYbO2Jra64ksqHxTIcIcTKID5eH5pbepMt3yrGjDBp14f9N+nY4Y5k6GoZ8+SVVFyqcsltxV+oUS3ZQ6ic2rMdH+yg9FsE2P4Xc9N99De2ng8w7xiDuZQ=",
+                "e52368f4b5da45568847e26ae894dd86");
 
         registerSigned("Goku", "http://textures.minecraft.net/texture/b43f45dba4e09732d42eaf34a7f53a69182281fd26f7850c4383a59ea6e875f5", false,
                 "ewogICJ0aW1lc3RhbXAiIDogMTc4OTg1NTA0NTYyNiwKICAicHJvZmlsZUlkIiA6ICIzOTI5ZTA1MmJhZDc0Yjc0ODE3NzRkNWJhNTkxZmJkNCIsCiAgInByb2ZpbGVOYW1lIiA6ICJHb2t1IiwKICAic2lnbmF0dXJlUmVxdWlyZWQiIDogdHJ1ZSwKICAidGV4dHVyZXMiIDogewogICAgIlNLSU4iIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2I0M2Y0NWRiYTRlMDk3MzJkNDJlYWYzNGE3ZjUzYTY5MTgyMjgxZmQyNmY3ODUwYzQzODNhNTllYTZlODc1ZjUiCiAgICB9LAogICAgIkNBUEUiIDogewogICAgICAidXJsIiA6ICJodHRwOi8vdGV4dHVyZXMubWluZWNyYWZ0Lm5ldC90ZXh0dXJlL2U3ZGZlYTE2ZGM4M2M5N2RmMDFhMTJmYWJiZDEyMTYzNTljMGNkMGVhNDJmOTk5OWI2ZTk3YzU4NDk2M2U5ODAiCiAgICB9CiAgfQp9",

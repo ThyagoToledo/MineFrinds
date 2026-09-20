@@ -526,7 +526,6 @@ public class CompanionManager {
 
         if (skinName.equalsIgnoreCase("Rimuru")) {
             profile.getProperties().put("companions_preset", new Property("companions_preset", "rimuru"));
-            return; // Rendered by the client preset renderer; never use the unrelated Rimuru account.
         }
         // Verifica catalogo de presets de anime
         if (SkinPresetCatalog.hasPreset(skinName)) {

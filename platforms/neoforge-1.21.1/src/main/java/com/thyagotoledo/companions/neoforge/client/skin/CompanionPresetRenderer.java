@@ -28,6 +28,7 @@ public final class CompanionPresetRenderer {
         boolean isRimuru = (properties != null && properties.stream().anyMatch(property -> "rimuru".equalsIgnoreCase(property.value())))
                 || "Rimuru".equalsIgnoreCase(player.getGameProfile().getName());
         if (!isRimuru) return;
+        if (player.getSkin().secure()) return;
 
         event.setCanceled(true);
         rendering = true;
