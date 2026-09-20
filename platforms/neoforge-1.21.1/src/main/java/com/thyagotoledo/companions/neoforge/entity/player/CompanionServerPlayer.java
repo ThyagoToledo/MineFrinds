@@ -25,6 +25,8 @@ import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -100,6 +102,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private Vec3 lastWorkPosition;
     private int stalledWorkTicks;
     private int consecutiveStalls = 0;
+    private int mineStuckTicks = 0;
     private java.util.List<BlockPos> localPath = java.util.Collections.emptyList();
     private long nextPathTick;
     private Vec3 lastPathTarget;
@@ -268,6 +271,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             tryAutoEat();
             smartEquipArmor();
             smartEquipTools();
+            ensureNightVision();
             if (dataEntity != null) {
                 java.util.List<com.thyagotoledo.companions.core.model.ItemSlot> slots = new java.util.ArrayList<>();
                 for (int slot = 0; slot < 36; slot++) {
@@ -681,7 +685,14 @@ public class CompanionServerPlayer extends ServerPlayer {
             direction = Vec3.ZERO;
         }
 
-        boolean shouldJump = (this.onGround() || this.isInWater()) && (this.horizontalCollision || step.y > 0.45);
+        boolean headObstructed = !this.level().getBlockState(this.blockPosition().above(2)).isAir();
+        Direction facing = Direction.fromYRot(this.getYRot());
+        boolean oneBlockClimbable = this.level().getBlockState(this.blockPosition().relative(facing).above()).isAir();
+
+        boolean shouldJump = (this.onGround() || this.isInWater())
+                && !headObstructed
+                && ((step.y > 0.45) || (this.horizontalCollision && oneBlockClimbable));
+
         double vertical = shouldJump ? 0.42 : this.getDeltaMovement().y;
         if (this.isInWater() && (target.y > this.getY() || shouldJump)) {
             vertical = 0.15;
@@ -979,7 +990,11 @@ public class CompanionServerPlayer extends ServerPlayer {
                 BlockPos exposed = findExposedOreInCave();
                 if (exposed != null) {
                     miningObjectivePos = exposed;
-                    targetWorkPos = exposed;
+                    if (canReachWork(exposed)) {
+                        targetWorkPos = exposed;
+                    } else {
+                        targetWorkPos = planExcavationStep(exposed);
+                    }
                 } else {
                     BlockPos explorePos = findCaveExplorationTarget();
                     if (explorePos != null) {
@@ -1021,6 +1036,34 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
                 return;
             }
+        }
+
+        // Iluminacao subterranea com tochas e auto-crafting
+        handleTorchPlacement();
+
+        // Deteccao anti-stuck: se travou contra uma parede tentando chegar ao alvo, quebra o bloco frontal
+        if (targetWorkPos != null && !canReachWork(targetWorkPos)) {
+            if (this.horizontalCollision || (this.lastWorkPosition != null && this.position().distanceToSqr(this.lastWorkPosition) < 0.04 && workBreakTicks == 0)) {
+                mineStuckTicks++;
+                if (mineStuckTicks >= 12) {
+                    BlockPos obstacle = findObstacleInFront();
+                    if (obstacle != null && !obstacle.equals(blockPosition().below())) {
+                        targetWorkPos = obstacle;
+                        mineStuckTicks = 0;
+                    } else {
+                        targetWorkPos = null;
+                        miningObjectivePos = null;
+                        mineStuckTicks = 0;
+                        if (miningDirection != null) {
+                            miningDirection = miningDirection.getClockWise();
+                        }
+                    }
+                }
+            } else {
+                mineStuckTicks = 0;
+            }
+        } else {
+            mineStuckTicks = 0;
         }
 
         Vec3 targetCenter = new Vec3(targetWorkPos.getX() + 0.5, targetWorkPos.getY() + 0.5, targetWorkPos.getZ() + 0.5);
@@ -1163,6 +1206,170 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
         }
         return false;
+    }
+
+    private BlockPos findObstacleInFront() {
+        Direction facing = Direction.fromYRot(getYRot());
+        BlockPos front = blockPosition().relative(facing);
+        BlockPos frontEye = front.above();
+
+        // 1. Testa altura dos olhos para liberar a visao e cabeca
+        BlockState eyeState = level().getBlockState(frontEye);
+        if (!eyeState.isAir() && eyeState.getDestroySpeed(level(), frontEye) >= 0 && hasToolFor(eyeState) && !isDangerousBlock(frontEye)) {
+            return frontEye;
+        }
+
+        // 2. Testa altura dos pes para liberar a passagem no chao
+        BlockState feetState = level().getBlockState(front);
+        if (!feetState.isAir() && feetState.getDestroySpeed(level(), front) >= 0 && hasToolFor(feetState) && !isDangerousBlock(front)) {
+            return front;
+        }
+
+        return null;
+    }
+
+    private void handleTorchPlacement() {
+        if (this.tickCount % 20 != 0) return;
+
+        BlockPos currentPos = blockPosition();
+        int blockLight = level().getBrightness(LightLayer.BLOCK, currentPos);
+
+        if (blockLight < 8) {
+            if (isTorchNearby(currentPos, 7)) {
+                return;
+            }
+
+            if (!tryEnsureTorches()) {
+                return;
+            }
+
+            BlockPos placePos = null;
+            if (isValidTorchFloor(currentPos)) {
+                placePos = currentPos;
+            } else {
+                for (Direction dir : Direction.Plane.HORIZONTAL) {
+                    BlockPos candidate = currentPos.relative(dir);
+                    if (isValidTorchFloor(candidate)) {
+                        placePos = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (placePos != null && canUsePlayerBreak(placePos)) {
+                if (consumeItem(Items.TORCH, 1)) {
+                    level().setBlockAndUpdate(placePos, Blocks.TORCH.defaultBlockState());
+                    level().playSound(null, placePos, SoundEvents.WOOD_PLACE, SoundSource.BLOCKS, 1.0f, 1.0f);
+                    this.swing(InteractionHand.OFF_HAND, true);
+                }
+            }
+        }
+    }
+
+    private boolean isTorchNearby(BlockPos center, int radius) {
+        for (BlockPos p : BlockPos.betweenClosed(center.offset(-radius, -2, -radius), center.offset(radius, 2, radius))) {
+            BlockState s = level().getBlockState(p);
+            if (s.is(Blocks.TORCH) || s.is(Blocks.WALL_TORCH) || s.is(Blocks.SOUL_TORCH) || s.is(Blocks.SOUL_WALL_TORCH)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isValidTorchFloor(BlockPos pos) {
+        if (!level().getBlockState(pos).isAir()) return false;
+        BlockPos floor = pos.below();
+        BlockState floorState = level().getBlockState(floor);
+        return floorState.isSolidRender(level(), floor) && !floorState.is(Blocks.MAGMA_BLOCK) && !floorState.is(Blocks.LAVA);
+    }
+
+    private boolean tryEnsureTorches() {
+        if (countItemInInventory(Items.TORCH) > 0) {
+            return true;
+        }
+
+        // 1. Tenta craft via RecipeCraftingService
+        if (com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, Items.TORCH, 4)) {
+            if (this.tickCount % 200 == 0) {
+                speakToOwner("Fabriquei tochas para mineracao / I crafted torches for mining.");
+            }
+            return true;
+        }
+
+        // 2. Fallback direto se possuir carvao e gravetos/madeira no inventario
+        int coalCount = countItemInInventory(Items.COAL) + countItemInInventory(Items.CHARCOAL);
+        if (coalCount <= 0) return false;
+
+        int stickCount = countItemInInventory(Items.STICK);
+        if (stickCount <= 0) {
+            if (!craftSticksFromWood()) {
+                return false;
+            }
+            stickCount = countItemInInventory(Items.STICK);
+        }
+
+        if (stickCount > 0 && coalCount > 0) {
+            if (consumeItem(Items.COAL, 1) || consumeItem(Items.CHARCOAL, 1)) {
+                if (consumeItem(Items.STICK, 1)) {
+                    ItemStack torches = new ItemStack(Items.TORCH, 4);
+                    getInventory().add(torches);
+                    getInventory().setChanged();
+                    if (this.tickCount % 200 == 0) {
+                        speakToOwner("Fabriquei tochas para mineracao / I crafted torches for mining.");
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean craftSticksFromWood() {
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(ItemTags.PLANKS)) {
+                if (stack.getCount() >= 2) {
+                    stack.shrink(2);
+                    getInventory().add(new ItemStack(Items.STICK, 4));
+                    getInventory().setChanged();
+                    return true;
+                }
+            }
+        }
+
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && (stack.is(ItemTags.LOGS) || stack.getItem().getDescriptionId().contains("log"))) {
+                stack.shrink(1);
+                getInventory().add(new ItemStack(Items.OAK_PLANKS, 4));
+                getInventory().setChanged();
+                return craftSticksFromWood();
+            }
+        }
+        return false;
+    }
+
+    private boolean consumeItem(Item item, int amount) {
+        if (item == null || amount <= 0) return false;
+        if (countItemInInventory(item) < amount) return false;
+        int remaining = amount;
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.is(item)) {
+                int take = Math.min(remaining, stack.getCount());
+                stack.shrink(take);
+                remaining -= take;
+                if (remaining <= 0) break;
+            }
+        }
+        getInventory().setChanged();
+        return true;
+    }
+
+    private void ensureNightVision() {
+        if (!this.hasEffect(MobEffects.NIGHT_VISION) || this.getEffect(MobEffects.NIGHT_VISION).getDuration() < 200) {
+            this.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 6000, 0, false, false, false));
+        }
     }
 
     private boolean isInCave() {

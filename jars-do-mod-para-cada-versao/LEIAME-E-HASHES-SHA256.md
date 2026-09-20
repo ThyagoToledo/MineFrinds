@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Aba de Mineracao na GUI, Selecao Simples/Multipla de Minerios, Vein Miner em Cascata, Escadas, Tuneis 1x2 e Cavernas | 259.624 bytes | `FB7A61536D151D8DF2565D0D75AE774E15F35D3F35271F6A9050B25793B87D5A` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com Aba de Mineracao na GUI, Vein Miner, integracao Tensura completa e agricultura com arado | 259.667 bytes | `694243E3450838FFF7A1207F97B4F7A6E977A69669F978C344EBE988DDD91BB9` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Anti-Stuck contra paredes, Visao Noturna, Colocacao e Craft Autonomo de Tochas, Aba de Mineracao na GUI e Vein Miner | 261.883 bytes | `D3DD92FD5486042DBB3D3025124865A33788E71B324C2DE34E625700D7C841EF` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com Anti-Stuck, Visao Noturna, Tochas, Aba de Mineracao na GUI, Vein Miner e integracao Tensura | 261.927 bytes | `B207596D61F9CDFAE0F7E2E1976BDDA935C018DC782F04A4413DD1F5EA748EAE` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 
