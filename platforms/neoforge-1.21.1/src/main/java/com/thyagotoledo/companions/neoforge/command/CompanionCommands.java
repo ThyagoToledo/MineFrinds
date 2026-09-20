@@ -41,6 +41,14 @@ public class CompanionCommands {
             "reset", "self", "Rimuru", "Goku", "Luffy", "Naruto", "Kirito", "Gojo", "Zoro", "Tanjiro"
     );
 
+    private static final List<String> MINE_PRIORITY_SUGGESTIONS = Arrays.asList(
+            "diamante", "ferro", "carvao", "ouro", "redstone", "lapis", "netherite", "cobre", "all", "qualquer"
+    );
+
+    private static final List<String> FARM_MODE_SUGGESTIONS = Arrays.asList(
+            "padrao", "arar", "standard", "till", "colher"
+    );
+
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         CommandDispatcher<CommandSourceStack> dispatcher = event.getDispatcher();
@@ -75,7 +83,7 @@ public class CompanionCommands {
                                 .executes(ctx -> executeSpawn(ctx.getSource(), null, false))
                                 .then(Commands.argument("nome", StringArgumentType.greedyString())
                                         .executes(ctx -> executeSpawn(ctx.getSource(), StringArgumentType.getString(ctx, "nome"), false))
-                                )
+                                 )
                         )
                         .then(Commands.literal("lan")
                                 .executes(ctx -> executeSpawn(ctx.getSource(), null, true))
@@ -97,8 +105,37 @@ public class CompanionCommands {
                         )
                         .then(Commands.literal("action")
                                 .then(Commands.literal("wood").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WOOD)))
-                                .then(Commands.literal("mine").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.MINE)))
-                                .then(Commands.literal("farm").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.FARM)))
+                                .then(Commands.literal("mine")
+                                        .executes(ctx -> executeMineCommand(ctx.getSource(), "all"))
+                                        .then(Commands.argument("prioridade", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(MINE_PRIORITY_SUGGESTIONS, builder))
+                                                .executes(ctx -> executeMineCommand(ctx.getSource(), StringArgumentType.getString(ctx, "prioridade")))
+                                        )
+                                )
+                                .then(Commands.literal("farm")
+                                        .executes(ctx -> executeFarmCommand(ctx.getSource(), "padrao"))
+                                        .then(Commands.argument("modo", StringArgumentType.word())
+                                                .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(FARM_MODE_SUGGESTIONS, builder))
+                                                .executes(ctx -> executeFarmCommand(ctx.getSource(), StringArgumentType.getString(ctx, "modo")))
+                                        )
+                                )
+                        )
+                        .then(Commands.literal("mine")
+                                .executes(ctx -> executeMineCommand(ctx.getSource(), "all"))
+                                .then(Commands.argument("prioridade", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(MINE_PRIORITY_SUGGESTIONS, builder))
+                                        .executes(ctx -> executeMineCommand(ctx.getSource(), StringArgumentType.getString(ctx, "prioridade")))
+                                )
+                        )
+                        .then(Commands.literal("farm")
+                                .executes(ctx -> executeFarmCommand(ctx.getSource(), "padrao"))
+                                .then(Commands.argument("modo", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(FARM_MODE_SUGGESTIONS, builder))
+                                        .executes(ctx -> executeFarmCommand(ctx.getSource(), StringArgumentType.getString(ctx, "modo")))
+                                )
+                        )
+                        .then(Commands.literal("wood")
+                                .executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WOOD))
                         )
                         .then(Commands.literal("inventory")
                                 .executes(ctx -> executeInventory(ctx.getSource()))
@@ -267,6 +304,79 @@ public class CompanionCommands {
 
         source.sendSuccess(() -> Component.literal("Modo do companheiro alterado para: " + desc), true);
         companion.speakToOwner("Modo alterado para: " + desc + ".");
+        return 1;
+    }
+
+    private static int executeMineCommand(CommandSourceStack source, String priority) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        String prio = (priority == null || priority.trim().isEmpty()) ? "all" : priority.trim().toLowerCase(Locale.ROOT);
+
+        // Se ja estiver no modo MINE com a mesma prioridade, toggle para FOLLOW
+        if (companion.getMode() == CompanionMode.MINE && prio.equalsIgnoreCase(companion.getMiningPriority())) {
+            companion.setMode(CompanionMode.FOLLOW);
+            source.sendSuccess(() -> Component.literal("Mineracao desativada. Voltando a te seguir."), true);
+            companion.speakToOwner("Mineracao desativada. Voltando a te seguir.");
+            return 1;
+        }
+
+        companion.setMiningPriority(prio);
+        companion.setMode(CompanionMode.MINE);
+
+        String prioName = switch (prio) {
+            case "diamante", "diamond" -> "Diamantes";
+            case "ferro", "iron" -> "Ferro";
+            case "carvao", "coal" -> "Carvao";
+            case "ouro", "gold" -> "Ouro";
+            case "redstone" -> "Redstone";
+            case "lapis" -> "Lapis-lazuli";
+            case "netherite", "debris" -> "Netherite";
+            case "cobre", "copper" -> "Cobre";
+            default -> "Todos os minerios (por valor)";
+        };
+
+        source.sendSuccess(() -> Component.literal("Modo de mineracao ativado com foco em: " + prioName + "."), true);
+        companion.speakToOwner("Iniciando mineracao com foco em: " + prioName + ".");
+        return 1;
+    }
+
+    private static int executeFarmCommand(CommandSourceStack source, String modeArg) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return 0;
+
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo. Use /companion spawn primeiro."));
+            return 0;
+        }
+
+        boolean till = modeArg != null && (modeArg.equalsIgnoreCase("arar") || modeArg.equalsIgnoreCase("till"));
+
+        // Se ja estiver no modo FARM com a mesma configuracao, toggle para FOLLOW
+        if (companion.getMode() == CompanionMode.FARM && companion.isFarmTillEnabled() == till) {
+            companion.setMode(CompanionMode.FOLLOW);
+            source.sendSuccess(() -> Component.literal("Agricultura desativada. Voltando a te seguir."), true);
+            companion.speakToOwner("Agricultura desativada. Voltando a te seguir.");
+            return 1;
+        }
+
+        companion.setFarmTillEnabled(till);
+        companion.setMode(CompanionMode.FARM);
+
+        if (till) {
+            source.sendSuccess(() -> Component.literal("Modo de agricultura ativado com permissao de arar terra com enxada proxima a agua."), true);
+            companion.speakToOwner("Iniciando agricultura com arado! Vou arar terra proxima a agua e plantar minhas sementes.");
+        } else {
+            source.sendSuccess(() -> Component.literal("Modo de agricultura padrao ativado (colheita e replantio apenas em terra arada existente)."), true);
+            companion.speakToOwner("Iniciando agricultura conservadora! Vou colher safras maduras e replantar em canteiros existentes.");
+        }
         return 1;
     }
 
@@ -487,15 +597,16 @@ public class CompanionCommands {
             return true;
         }
 
-        if (lower.equals("minerar") || lower.equals("pega minerio") || lower.equals("mine") || lower.equals("mina")) {
-            companion.setMode(CompanionMode.MINE);
-            companion.speakToOwner("Iniciando mineracao de minerios proximos!");
+        if (lower.startsWith("minerar") || lower.startsWith("pega minerio") || lower.startsWith("mine") || lower.startsWith("mina")) {
+            String[] parts = lower.split("\\s+");
+            String prio = parts.length > 1 ? parts[1] : "all";
+            executeMineCommand(player.createCommandSourceStack(), prio);
             return true;
         }
 
-        if (lower.equals("plantar") || lower.equals("colher") || lower.equals("fazenda") || lower.equals("farm") || lower.equals("agricultura")) {
-            companion.setMode(CompanionMode.FARM);
-            companion.speakToOwner("Iniciando trabalho de agricultura! Vou colher safras maduras e replantar sementes.");
+        if (lower.startsWith("plantar") || lower.startsWith("colher") || lower.startsWith("fazenda") || lower.startsWith("farm") || lower.startsWith("agricultura") || lower.startsWith("arar")) {
+            boolean till = lower.contains("arar") || lower.contains("till");
+            executeFarmCommand(player.createCommandSourceStack(), till ? "arar" : "padrao");
             return true;
         }
 
@@ -573,6 +684,8 @@ public class CompanionCommands {
         source.sendSuccess(() -> createClickableCommand("/companion lan [nome]", "Abre o mundo para LAN e invoca o companheiro", "/companion lan "), false);
         source.sendSuccess(() -> createClickableCommand("/companion mode <follow|stay|defend|auto>", "Altera o comportamento do companheiro", "/companion mode "), false);
         source.sendSuccess(() -> createClickableCommand("/companion action <wood|mine|farm>", "Ordena corte de madeira, mineracao ou colheita/plantio", "/companion action "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion mine [prioridade]", "Mineracao estilo jogador com escadas e tuneis (diamante, ferro, carvao, etc.)", "/companion mine "), false);
+        source.sendSuccess(() -> createClickableCommand("/companion farm [padrao|arar]", "Agricultura conservadora ou com arado de terra com enxada proxima a agua", "/companion farm "), false);
         source.sendSuccess(() -> createClickableCommand("/companion chest", "Define o bau proximo como estoque e deposito principal", "/companion chest"), false);
         source.sendSuccess(() -> createClickableCommand("/companion craft <item> [qtd]", "Fabrica com receitas da mochila e bancada proxima; tenta novamente por 60 segundos", "/companion craft "), false);
         source.sendSuccess(() -> createClickableCommand("/companion inventory", "Abre o inventario completo com armaduras e mochila", "/companion inventory"), false);
@@ -583,7 +696,7 @@ public class CompanionCommands {
         source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Altera a skin em tempo real (ex: Rimuru, Goku, Luffy)", "/skin "), false);
         source.sendSuccess(() -> createClickableCommand("/skin reset", "Restaura para a sua propria skin", "/skin reset"), false);
         source.sendSuccess(() -> Component.literal("Comandos por Chat de Voz:"), false);
-        source.sendSuccess(() -> Component.literal("  Digite 'me segue', 'fica aqui', 'defenda', 'pega madeira', 'minerar', 'plantar', 'marcar bau', 'fabrica <item>', 'guardar' ou 'mochila'."), false);
+        source.sendSuccess(() -> Component.literal("  Digite 'me segue', 'fica aqui', 'defenda', 'pega madeira', 'minerar [minerio]', 'plantar', 'arar', 'marcar bau', 'fabrica <item>', 'guardar' ou 'mochila'."), false);
         source.sendSuccess(() -> Component.literal("============================================"), false);
     }
 

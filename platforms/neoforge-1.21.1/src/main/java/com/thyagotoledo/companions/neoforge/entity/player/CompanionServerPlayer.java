@@ -7,6 +7,7 @@ import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -16,8 +17,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.FluidTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.SimpleMenuProvider;
@@ -70,8 +73,12 @@ public class CompanionServerPlayer extends ServerPlayer {
     private int stairSteps;
     private int stairApproachTicks;
     private BlockPos stairDestination;
-    private net.minecraft.core.Direction miningDirection;
+    private Direction miningDirection;
     private BlockState blockedOre;
+    private String miningPriority = "all";
+    private BlockPos targetVeinPos = null;
+    private BlockPos miningObjectivePos = null;
+    private boolean farmTillEnabled = false;
     private long nextGearCraftTick;
     private BlockPos remoteBreakTarget;
     private float remoteBreakProgress;
@@ -377,12 +384,33 @@ public class CompanionServerPlayer extends ServerPlayer {
         switch (mode) {
             case WOOD -> equipForBlock(Blocks.OAK_LOG.defaultBlockState());
             case MINE -> equipForBlock(targetWorkPos == null ? Blocks.STONE.defaultBlockState() : level().getBlockState(targetWorkPos));
+            case FARM -> {
+                if (targetWorkPos != null && isTillableDirt(level().getBlockState(targetWorkPos))) {
+                    equipBestHoe();
+                }
+            }
             case DEFEND -> equipBestWeapon();
             default -> { }
         }
     }
 
-    private void equipBestTool(Class<? extends Item> ignored) { equipForBlock(Blocks.STONE.defaultBlockState()); }
+    private void equipBestTool(Class<? extends Item> toolClass) {
+        if (toolClass == HoeItem.class) {
+            equipBestHoe();
+        } else {
+            equipForBlock(Blocks.STONE.defaultBlockState());
+        }
+    }
+
+    private void equipBestHoe() {
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.getItem() instanceof HoeItem) {
+                swapToHand(i);
+                return;
+            }
+        }
+    }
 
     private boolean equipForBlock(BlockState state) {
         int chosen = getInventory().selected;
@@ -929,40 +957,59 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void handleMineMode(ServerPlayer owner) {
-        if (miningDirection == null) miningDirection = net.minecraft.core.Direction.fromYRot(getYRot());
-        if (targetWorkPos == null) {
-            if (stairDestination != null && level().getBlockState(stairDestination).isAir()
-                    && level().getBlockState(stairDestination.above()).isAir()
-                    && level().getBlockState(stairDestination.above(2)).isAir()) {
-                moveToward(Vec3.atBottomCenterOf(stairDestination), 0.18);
-                if (++stairApproachTicks >= 80) {
-                    miningDirection = miningDirection.getClockWise();
-                    stairDestination = null;
-                    stairApproachTicks = 0;
-                    return;
-                }
-                if (position().distanceToSqr(Vec3.atBottomCenterOf(stairDestination)) < 0.5) {
-                    stairSteps++; stairDestination = null; perceptionTicks = 0; stairApproachTicks = 0;
-                }
-                return;
+        if (miningDirection == null) miningDirection = Direction.fromYRot(getYRot());
+
+        // 1. Vein Mining: se acabou de minerar um minerio, prioriza minerar blocos contiguos do mesmo veio
+        if (targetVeinPos != null) {
+            BlockPos adjacent = findAdjacentOre(targetVeinPos);
+            if (adjacent != null) {
+                targetWorkPos = adjacent;
+            } else {
+                targetVeinPos = null;
             }
-            if (stairDestination == null) {
-                setYRot(getYRot() + 8); setYHeadRot(getYRot()); setXRot(15);
-                perceptionTicks++;
-            }
-            equipBestTool(PickaxeItem.class);
         }
+
+        // 2. Se nao temos alvo de mineracao ativo ou o alvo virou ar
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
             if (this.tickCount < nextWorkScanTick) return;
             nextWorkScanTick = this.tickCount + 10L;
-            targetWorkPos = findNearestOre();
+
+            // Modo Caverna: se estiver em caverna aberta, procura minerios expostos na parede/chao/teto
+            if (isInCave()) {
+                BlockPos exposed = findExposedOreInCave();
+                if (exposed != null) {
+                    miningObjectivePos = exposed;
+                    targetWorkPos = exposed;
+                } else {
+                    BlockPos explorePos = findCaveExplorationTarget();
+                    if (explorePos != null) {
+                        moveToward(Vec3.atBottomCenterOf(explorePos), 0.22);
+                        nextWorkScanTick = this.tickCount + 20L;
+                        return;
+                    }
+                }
+            }
+
+            // Se nao encontrou em caverna, escaneia subsolo por veios do filtro selecionado
+            if (targetWorkPos == null) {
+                if (miningObjectivePos == null || this.level().getBlockState(miningObjectivePos).isAir()
+                        || !isTargetOre(this.level().getBlockState(miningObjectivePos))) {
+                    miningObjectivePos = findSubterraneanOreTarget();
+                }
+
+                if (miningObjectivePos != null) {
+                    targetWorkPos = planExcavationStep(miningObjectivePos);
+                    if (targetWorkPos == null) return;
+                } else {
+                    targetWorkPos = staircaseTarget();
+                }
+            }
+
             if (blockedOre != null && tryCraftUpgrade(blockedOre, false)) {
                 targetWorkPos = null;
                 return;
             }
-            if (targetWorkPos == null && perceptionTicks < 45) return;
-            if (targetWorkPos == null) targetWorkPos = staircaseTarget();
-            if (targetWorkPos == null && stairDestination != null) return;
+
             workBreakTicks = 0;
             if (targetWorkPos == null) {
                 checkPendingCraftFulfillment(owner);
@@ -978,10 +1025,6 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         Vec3 targetCenter = new Vec3(targetWorkPos.getX() + 0.5, targetWorkPos.getY() + 0.5, targetWorkPos.getZ() + 0.5);
         lookAtPosition(targetCenter);
-
-        Vec3 diff = targetCenter.subtract(this.position());
-        double dXZ = Math.hypot(diff.x, diff.z);
-        double distEyeSq = this.getEyePosition().distanceToSqr(targetCenter);
 
         if (!canReachWork(targetWorkPos)) {
             moveToward(targetCenter, 0.24);
@@ -1004,10 +1047,11 @@ public class CompanionServerPlayer extends ServerPlayer {
                 workBreakTicks = 0;
                 return;
             }
+
             if (workBreakTicks == 1) miningProgress = 0;
             miningProgress += miningState.getDestroyProgress(this, this.level(), targetWorkPos);
+
             if (miningProgress >= 1.0f) {
-                // Valida protecao de mineracao
                 if (!canUsePlayerBreak(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para minerar nesta area protegida!");
                     targetWorkPos = null;
@@ -1015,10 +1059,18 @@ public class CompanionServerPlayer extends ServerPlayer {
                     return;
                 }
 
+                boolean wasOre = isTargetOre(miningState);
+                BlockPos brokenPos = targetWorkPos.immutable();
+
                 if (this.gameMode.destroyBlock(targetWorkPos)) {
-                    requestDropCollection(targetWorkPos);
+                    requestDropCollection(brokenPos);
                     harvestedCount++;
+
+                    if (wasOre) {
+                        targetVeinPos = brokenPos;
+                    }
                 }
+
                 targetWorkPos = null;
                 workBreakTicks = 0;
 
@@ -1026,6 +1078,254 @@ public class CompanionServerPlayer extends ServerPlayer {
                     return;
                 }
             }
+        }
+    }
+
+    private boolean isInCave() {
+        BlockPos pos = blockPosition();
+        if (level().canSeeSky(pos)) return false;
+        int skyLight = level().getBrightness(LightLayer.SKY, pos);
+        if (skyLight >= 4) return false;
+
+        int airCount = 0;
+        for (BlockPos p : BlockPos.betweenClosed(pos.offset(-3, -1, -3), pos.offset(3, 2, 3))) {
+            if (level().getBlockState(p).isAir()) {
+                airCount++;
+                if (airCount >= 14) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isTargetOre(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        boolean isOre = state.is(net.neoforged.neoforge.common.Tags.Blocks.ORES);
+        if (!isOre) {
+            String desc = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
+            if (desc.contains("ore") || desc.contains("debris")) isOre = true;
+        }
+        if (!isOre) return false;
+        return matchesOreFilter(state, this.miningPriority);
+    }
+
+    private boolean matchesOreFilter(BlockState state, String filter) {
+        if (filter == null || filter.equalsIgnoreCase("all") || filter.equalsIgnoreCase("qualquer")) {
+            return true;
+        }
+        String desc = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
+        String name = filter.toLowerCase(Locale.ROOT);
+        return switch (name) {
+            case "diamante", "diamond" -> desc.contains("diamond");
+            case "ferro", "iron" -> desc.contains("iron");
+            case "carvao", "coal" -> desc.contains("coal");
+            case "ouro", "gold" -> desc.contains("gold");
+            case "redstone" -> desc.contains("redstone");
+            case "lapis" -> desc.contains("lapis");
+            case "netherite", "debris" -> desc.contains("debris") || desc.contains("netherite");
+            case "cobre", "copper" -> desc.contains("copper");
+            default -> desc.contains(name);
+        };
+    }
+
+    private double getOreWeight(BlockState state) {
+        String desc = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
+        if (desc.contains("diamond")) return 100.0;
+        if (desc.contains("debris") || desc.contains("netherite")) return 95.0;
+        if (desc.contains("gold")) return 80.0;
+        if (desc.contains("iron")) return 70.0;
+        if (desc.contains("redstone")) return 60.0;
+        if (desc.contains("lapis")) return 50.0;
+        if (desc.contains("copper")) return 40.0;
+        if (desc.contains("coal")) return 30.0;
+        return 20.0;
+    }
+
+    private BlockPos findExposedOreInCave() {
+        BlockPos current = blockPosition();
+        BlockPos best = null;
+        double bestScore = -Double.MAX_VALUE;
+        blockedOre = null;
+
+        for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-16, -6, -16), current.offset(16, 6, 16))) {
+            if (!level().hasChunkAt(candidate) || candidate.equals(current.below())) continue;
+            BlockState state = level().getBlockState(candidate);
+            if (!isTargetOre(state)) continue;
+            if (state.getDestroySpeed(level(), candidate) < 0) continue;
+
+            boolean exposed = false;
+            for (Direction dir : Direction.values()) {
+                BlockPos neighbor = candidate.relative(dir);
+                if (level().getBlockState(neighbor).isAir()) {
+                    exposed = true;
+                    break;
+                }
+            }
+            if (!exposed) continue;
+
+            if (!hasToolFor(state)) {
+                blockedOre = state;
+                continue;
+            }
+
+            double distSq = candidate.distSqr(current);
+            double score = getOreWeight(state) * 20.0 - distSq;
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate.immutable();
+            }
+        }
+        return best;
+    }
+
+    private BlockPos findCaveExplorationTarget() {
+        BlockPos current = blockPosition();
+        BlockPos best = null;
+        double bestDist = 0;
+
+        for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-8, -2, -8), current.offset(8, 2, 8))) {
+            if (level().getBlockState(candidate).isAir()
+                    && level().getBlockState(candidate.above()).isAir()
+                    && isSafeDigFloor(candidate.below())) {
+                double dist = candidate.distSqr(current);
+                if (dist > 16.0 && dist > bestDist) {
+                    bestDist = dist;
+                    best = candidate.immutable();
+                }
+            }
+        }
+        return best;
+    }
+
+    private BlockPos findSubterraneanOreTarget() {
+        BlockPos current = blockPosition();
+        BlockPos best = null;
+        double bestScore = -Double.MAX_VALUE;
+        blockedOre = null;
+
+        for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-18, -32, -18), current.offset(18, 12, 18))) {
+            if (!level().hasChunkAt(candidate) || candidate.equals(current.below())) continue;
+            BlockState state = level().getBlockState(candidate);
+            if (!isTargetOre(state)) continue;
+            if (state.getDestroySpeed(level(), candidate) < 0) continue;
+
+            if (!hasToolFor(state)) {
+                blockedOre = state;
+                continue;
+            }
+
+            double distSq = candidate.distSqr(current);
+            double score = getOreWeight(state) * 25.0 - distSq;
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate.immutable();
+            }
+        }
+        return best;
+    }
+
+    private BlockPos findAdjacentOre(BlockPos origin) {
+        if (origin == null) return null;
+        BlockState originState = level().getBlockState(origin);
+        for (Direction dir : Direction.values()) {
+            BlockPos neighbor = origin.relative(dir);
+            if (neighbor.equals(blockPosition().below())) continue;
+            if (!level().hasChunkAt(neighbor)) continue;
+            BlockState neighborState = level().getBlockState(neighbor);
+            if (!neighborState.isAir() && (neighborState.is(originState.getBlock()) || isTargetOre(neighborState))) {
+                if (hasToolFor(neighborState) && canUsePlayerBreak(neighbor)) {
+                    return neighbor.immutable();
+                }
+            }
+        }
+        return null;
+    }
+
+    private boolean isSafeDigFloor(BlockPos floor) {
+        if (!level().hasChunkAt(floor)) return false;
+        BlockState state = level().getBlockState(floor);
+        if (state.isAir() || !state.isSolidRender(level(), floor)) return false;
+        if (state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.LAVA) || state.is(Blocks.FIRE)) return false;
+        if (!level().getFluidState(floor).isEmpty()) return false;
+        return true;
+    }
+
+    private boolean isDangerousBlock(BlockPos pos) {
+        if (!level().hasChunkAt(pos)) return true;
+        if (!level().getFluidState(pos).isEmpty()) return true;
+        BlockState state = level().getBlockState(pos);
+        return state.is(Blocks.MAGMA_BLOCK) || state.is(Blocks.FIRE) || state.is(Blocks.LAVA);
+    }
+
+    private BlockPos planExcavationStep(BlockPos objective) {
+        if (objective == null) return null;
+
+        if (canReachWork(objective)) {
+            return objective;
+        }
+
+        BlockPos current = blockPosition();
+        int dx = objective.getX() - current.getX();
+        int dy = objective.getY() - current.getY();
+        int dz = objective.getZ() - current.getZ();
+
+        Direction primaryDir;
+        if (Math.abs(dx) >= Math.abs(dz) && dx != 0) {
+            primaryDir = dx > 0 ? Direction.EAST : Direction.WEST;
+        } else if (dz != 0) {
+            primaryDir = dz > 0 ? Direction.SOUTH : Direction.NORTH;
+        } else {
+            primaryDir = miningDirection != null ? miningDirection : Direction.fromYRot(getYRot());
+        }
+        miningDirection = primaryDir;
+
+        // Caso 1: Minerio esta significativamente abaixo (dy <= -2) -> Escada Descendente 1x2
+        if (dy <= -2) {
+            BlockPos stepFloor = current.relative(primaryDir).below();
+            if (isSafeDigFloor(stepFloor.below())) {
+                for (BlockPos p : new BlockPos[]{stepFloor.above(2), stepFloor.above(), stepFloor}) {
+                    BlockState s = level().getBlockState(p);
+                    if (!s.isAir() && s.getDestroySpeed(level(), p) >= 0 && hasToolFor(s) && !isDangerousBlock(p)) {
+                        lookAtPosition(p.getCenter());
+                        return p;
+                    }
+                }
+                moveToward(Vec3.atBottomCenterOf(stepFloor), 0.20);
+                return null;
+            } else {
+                miningDirection = primaryDir.getClockWise();
+                return staircaseTarget();
+            }
+        }
+
+        // Caso 2: Minerio esta significativamente acima (dy >= 2) -> Escada Ascendente 1x2
+        if (dy >= 2) {
+            BlockPos stepFloor = current.relative(primaryDir).above();
+            for (BlockPos p : new BlockPos[]{stepFloor.above(2), stepFloor.above(), stepFloor}) {
+                BlockState s = level().getBlockState(p);
+                if (!s.isAir() && s.getDestroySpeed(level(), p) >= 0 && hasToolFor(s) && !isDangerousBlock(p)) {
+                    lookAtPosition(p.getCenter());
+                    return p;
+                }
+            }
+            moveToward(Vec3.atBottomCenterOf(stepFloor), 0.20);
+            return null;
+        }
+
+        // Caso 3: Minerio esta na mesma altura (-1 <= dy <= 1) -> Tunel Reto 1x2
+        BlockPos tunnelStep = current.relative(primaryDir);
+        if (isSafeDigFloor(tunnelStep.below())) {
+            for (BlockPos p : new BlockPos[]{tunnelStep.above(), tunnelStep}) {
+                BlockState s = level().getBlockState(p);
+                if (!s.isAir() && s.getDestroySpeed(level(), p) >= 0 && hasToolFor(s) && !isDangerousBlock(p)) {
+                    lookAtPosition(p.getCenter());
+                    return p;
+                }
+            }
+            moveToward(Vec3.atBottomCenterOf(tunnelStep), 0.20);
+            return null;
+        } else {
+            miningDirection = primaryDir.getClockWise();
+            return staircaseTarget();
         }
     }
 
@@ -1050,10 +1350,6 @@ public class CompanionServerPlayer extends ServerPlayer {
         Vec3 targetCenter = new Vec3(targetWorkPos.getX() + 0.5, targetWorkPos.getY() + 0.5, targetWorkPos.getZ() + 0.5);
         lookAtPosition(targetCenter);
 
-        Vec3 diff = targetCenter.subtract(this.position());
-        double dXZ = Math.hypot(diff.x, diff.z);
-        double distEyeSq = this.getEyePosition().distanceToSqr(targetCenter);
-
         if (!canReachWork(targetWorkPos)) {
             moveToward(targetCenter, 0.24);
         } else {
@@ -1062,7 +1358,7 @@ public class CompanionServerPlayer extends ServerPlayer {
 
             BlockState state = this.level().getBlockState(targetWorkPos);
 
-            // Se for safra madura: colhe
+            // 1. Safra madura: colhe
             if (state.getBlock() instanceof CropBlock cropBlock && cropBlock.isMaxAge(state)) {
                 workBreakTicks++;
                 if (workBreakTicks % 4 == 0) {
@@ -1081,7 +1377,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     workBreakTicks = 0;
                 }
             }
-            // Se for terra arada vazia: replanta
+            // 2. Terra arada vazia: replanta
             else if (state.is(Blocks.FARMLAND) && this.level().getBlockState(targetWorkPos.above()).isAir()) {
                 BlockPos plantPos = targetWorkPos.above();
                 if (!checkCanInteractBlock(plantPos)) {
@@ -1099,6 +1395,39 @@ public class CompanionServerPlayer extends ServerPlayer {
                         this.swing(InteractionHand.MAIN_HAND, true);
                         this.level().playSound(null, plantPos.getX(), plantPos.getY(), plantPos.getZ(),
                                 SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0f, 1.0f);
+                    }
+                }
+                targetWorkPos = null;
+                workBreakTicks = 0;
+            }
+            // 3. Terra aravel com permissao de arar e enxada disponivel
+            else if (this.farmTillEnabled && isTillableDirt(state) && this.level().getBlockState(targetWorkPos.above()).isAir()) {
+                if (!checkCanInteractBlock(targetWorkPos)) {
+                    speakToOwner("Nao tenho permissao para arar a terra nesta area protegida!");
+                    targetWorkPos = null;
+                    workBreakTicks = 0;
+                    return;
+                }
+                ItemStack hoe = findHoeInInventory();
+                if (hoe != null) {
+                    equipBestHoe();
+                    this.swing(InteractionHand.MAIN_HAND, true);
+                    this.level().setBlockAndUpdate(targetWorkPos, Blocks.FARMLAND.defaultBlockState());
+                    this.level().playSound(null, targetWorkPos.getX(), targetWorkPos.getY(), targetWorkPos.getZ(),
+                            SoundEvents.HOE_TILL, SoundSource.BLOCKS, 1.0f, 1.0f);
+                    hoe.hurtAndBreak(1, serverLevel(), this, item -> {});
+
+                    // Planta imediatamente sobre o novo bloco de terra arada se tiver semente
+                    ItemStack seedStack = findSeedsInInventory();
+                    if (seedStack != null && !seedStack.isEmpty()) {
+                        BlockPos plantPos = targetWorkPos.above();
+                        BlockState cropState = getCropStateForSeed(seedStack.getItem());
+                        if (cropState != null) {
+                            this.level().setBlockAndUpdate(plantPos, cropState);
+                            seedStack.shrink(1);
+                            this.level().playSound(null, plantPos.getX(), plantPos.getY(), plantPos.getZ(),
+                                    SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0f, 1.0f);
+                        }
                     }
                 }
                 targetWorkPos = null;
@@ -1122,15 +1451,50 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
 
         // 2. Se tem sementes, procura terra arada vazia para plantar
-        if (findSeedsInInventory() != null) {
+        ItemStack seeds = findSeedsInInventory();
+        if (seeds != null) {
             for (BlockPos candidate : BlockPos.betweenClosed(currentPos.offset(-10, -2, -10), currentPos.offset(10, 2, 10))) {
                 BlockState state = this.level().getBlockState(candidate);
                 if (state.is(Blocks.FARMLAND) && this.level().getBlockState(candidate.above()).isAir()) {
                     return candidate.immutable();
                 }
             }
+
+            // 3. Se arado estiver habilitado e possuir enxada: procura terra/grama proxima a agua
+            if (this.farmTillEnabled && findHoeInInventory() != null) {
+                for (BlockPos candidate : BlockPos.betweenClosed(currentPos.offset(-8, -2, -8), currentPos.offset(8, 2, 8))) {
+                    BlockState state = this.level().getBlockState(candidate);
+                    if (isTillableDirt(state) && this.level().getBlockState(candidate.above()).isAir() && isNearWater(candidate)) {
+                        return candidate.immutable();
+                    }
+                }
+            }
         }
 
+        return null;
+    }
+
+    private boolean isTillableDirt(BlockState state) {
+        if (state == null || state.isAir()) return false;
+        return state.is(Blocks.DIRT) || state.is(Blocks.GRASS_BLOCK) || state.is(Blocks.DIRT_PATH) || state.is(Blocks.COARSE_DIRT) || state.is(Blocks.ROOTED_DIRT);
+    }
+
+    private boolean isNearWater(BlockPos pos) {
+        for (BlockPos candidate : BlockPos.betweenClosed(pos.offset(-4, 0, -4), pos.offset(4, 1, 4))) {
+            if (this.level().getFluidState(candidate).is(FluidTags.WATER)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ItemStack findHoeInInventory() {
+        for (int i = 0; i < 36; i++) {
+            ItemStack stack = this.getInventory().getItem(i);
+            if (!stack.isEmpty() && stack.getItem() instanceof HoeItem) {
+                return stack;
+            }
+        }
         return null;
     }
 
@@ -1214,7 +1578,7 @@ public class CompanionServerPlayer extends ServerPlayer {
         for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-8, -2, -8), current.offset(8, 4, 8))) {
             if (!level().hasChunkAt(candidate) || candidate.equals(current.below())) continue;
             BlockState state = level().getBlockState(candidate);
-            boolean ore = state.is(net.neoforged.neoforge.common.Tags.Blocks.ORES);
+            boolean ore = isTargetOre(state);
             if (!ore && !state.is(net.neoforged.neoforge.common.Tags.Blocks.STONES) && !state.is(Blocks.COBBLESTONE)) continue;
             if (state.getDestroySpeed(level(), candidate) < 0 || !visibleBlock(candidate)) continue;
             if (!hasToolFor(state)) { if (ore) blockedOre = state; continue; }
@@ -1728,6 +2092,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             this.autonomous = mode == CompanionMode.WORK;
             if (mode == CompanionMode.STAY) this.pendingCraftItem = null;
             this.targetWorkPos = null;
+            this.targetVeinPos = null;
+            this.miningObjectivePos = null;
             this.workBreakTicks = 0;
             this.localPath = java.util.Collections.emptyList();
             this.nextPathTick = 0;
@@ -1740,6 +2106,26 @@ public class CompanionServerPlayer extends ServerPlayer {
                 dataEntity.setMode(mode);
             }
         }
+    }
+
+    public String getMiningPriority() {
+        return miningPriority;
+    }
+
+    public void setMiningPriority(String priority) {
+        this.miningPriority = (priority == null || priority.trim().isEmpty()) ? "all" : priority.trim().toLowerCase(Locale.ROOT);
+        this.targetWorkPos = null;
+        this.targetVeinPos = null;
+        this.miningObjectivePos = null;
+    }
+
+    public boolean isFarmTillEnabled() {
+        return farmTillEnabled;
+    }
+
+    public void setFarmTillEnabled(boolean enabled) {
+        this.farmTillEnabled = enabled;
+        this.targetWorkPos = null;
     }
 
     public NeoForgeCompanionEntity getDataEntity() {

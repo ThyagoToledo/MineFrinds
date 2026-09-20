@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Orientacao Corporal Sincronizada, Movimentacao Frontal sem Andar de Costas, Arqueria e Mineracao Continua | 247.378 bytes | `5AD3FD967FC95847E4151A2574E2DD07D8AD3BB9E5EA3D28ED90AB56ABD6971A` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com orientacao corporal sincronizada e integracao Tensura completa | 247.421 bytes | `B56C4D79017C4353B4C4B0A3A4272A35D6DFFA0F56E81E6E5EE5C68782516370` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Mineracao Realista com Escadas, Tuneis 1x2 e Cavernas, Filtro de Prioridades e Expansao Agricola com Arado e Enxada | 254.298 bytes | `9D5C1F8AC998BC330C9C497EEFCBF78BFA445002DAF3B4BF0A2F248DD0689026` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com mineracao realista, agricultura com arado e integracao Tensura completa | 254.341 bytes | `5F608D916DB0947DA4EBD4F0AAE327F5A588DA8B86C4EFC262A11E6CFA6D4004` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 
@@ -88,8 +88,9 @@ A interface do mod (aberta via tecla `C`, icone `[C]` no inventario ou comando `
 
 - `/companion spawn [nome]`: Invoca o companheiro no servidor como jogador oficial.
 - `/companion lan [nome]`: Abre o mundo para LAN e convoca o companheiro.
-- `/companion mode <follow|stay|defend>`: Altera o comportamento (Seguir, Ficar aqui, Defender).
-- `/companion action <wood|mine|farm>`: Ordena corte de madeira (com felling em cascata), mineracao de minerios ou plantio/colheita de safras em fazendas.
+- `/companion action <wood|mine|farm>`: Ordena corte de madeira (com felling em cascata), mineracao realista ou agricultura.
+- `/companion mine [prioridade]`: Mineracao estilo jogador (escadas 1x2, tuneis retos, exploracao de cavernas e veios de diamante, ferro, carvao, ouro, redstone, lapis, netherite ou todos).
+- `/companion farm [padrao|arar]`: Agricultura conservadora (apenas canteiros existentes) ou expansiva (ara terra proxima a agua com enxada e planta).
 - `/companion chest` ou `/companion bau`: Registra o bau mais proximo como deposito e estoque principal do companheiro.
 - `/companion craft <item> [qtd]`: Fabrica itens autonomamente (busca materiais no bau designado e vai coletar na natureza se faltar madeira/pedra).
 - `/companion inventory`: Abre o inventario completo de 54 slots com armaduras (elmo, peitoral, calcas, botas), offhand, mao principal e mochila.
