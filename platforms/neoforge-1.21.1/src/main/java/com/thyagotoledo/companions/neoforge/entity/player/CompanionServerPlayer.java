@@ -1197,31 +1197,42 @@ public class CompanionServerPlayer extends ServerPlayer {
             return true;
         }
         String desc = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
-        String name = filter.toLowerCase(Locale.ROOT);
-        return switch (name) {
-            case "diamante", "diamond" -> desc.contains("diamond");
-            case "ferro", "iron" -> desc.contains("iron");
-            case "carvao", "coal" -> desc.contains("coal");
-            case "ouro", "gold" -> desc.contains("gold");
-            case "redstone" -> desc.contains("redstone");
-            case "lapis" -> desc.contains("lapis");
-            case "netherite", "debris" -> desc.contains("debris") || desc.contains("netherite");
-            case "cobre", "copper" -> desc.contains("copper");
-            default -> desc.contains(name);
-        };
+        String[] tokens = filter.split("[,;+\\s|]+");
+        for (String token : tokens) {
+            String name = token.trim().toLowerCase(Locale.ROOT);
+            if (name.isEmpty() || name.equals("all") || name.equals("qualquer")) return true;
+            boolean match = switch (name) {
+                case "diamante", "diamond" -> desc.contains("diamond");
+                case "ferro", "iron" -> desc.contains("iron");
+                case "carvao", "coal" -> desc.contains("coal");
+                case "ouro", "gold" -> desc.contains("gold");
+                case "redstone" -> desc.contains("redstone");
+                case "lapis" -> desc.contains("lapis");
+                case "netherite", "debris" -> desc.contains("debris") || desc.contains("netherite");
+                case "cobre", "copper" -> desc.contains("copper");
+                default -> desc.contains(name);
+            };
+            if (match) return true;
+        }
+        return false;
     }
 
     private double getOreWeight(BlockState state) {
         String desc = state.getBlock().getDescriptionId().toLowerCase(Locale.ROOT);
-        if (desc.contains("diamond")) return 100.0;
-        if (desc.contains("debris") || desc.contains("netherite")) return 95.0;
-        if (desc.contains("gold")) return 80.0;
-        if (desc.contains("iron")) return 70.0;
-        if (desc.contains("redstone")) return 60.0;
-        if (desc.contains("lapis")) return 50.0;
-        if (desc.contains("copper")) return 40.0;
-        if (desc.contains("coal")) return 30.0;
-        return 20.0;
+        double base = 20.0;
+        if (desc.contains("diamond")) base = 100.0;
+        else if (desc.contains("debris") || desc.contains("netherite")) base = 95.0;
+        else if (desc.contains("gold")) base = 80.0;
+        else if (desc.contains("iron")) base = 70.0;
+        else if (desc.contains("redstone")) base = 60.0;
+        else if (desc.contains("lapis")) base = 50.0;
+        else if (desc.contains("copper")) base = 40.0;
+        else if (desc.contains("coal")) base = 30.0;
+
+        if (this.miningPriority != null && !this.miningPriority.equalsIgnoreCase("all") && matchesOreFilter(state, this.miningPriority)) {
+            base += 60.0;
+        }
+        return base;
     }
 
     private BlockPos findExposedOreInCave() {

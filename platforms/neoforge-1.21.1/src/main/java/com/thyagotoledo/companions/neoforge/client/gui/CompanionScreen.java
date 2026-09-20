@@ -28,6 +28,7 @@ public class CompanionScreen extends Screen {
 
     public enum Tab {
         ACTIONS("Acoes & Ordens"),
+        MINING("Mineracao"),
         SKINS("Aparencia & Skins"),
         INTEGRATIONS("Modpacks & Integracoes");
 
@@ -54,6 +55,11 @@ public class CompanionScreen extends Screen {
     // Campos de input
     private EditBox chatBox;
     private EditBox skinBox;
+    private EditBox customOreBox;
+
+    // Estado da aba de mineracao
+    private static final java.util.Set<String> selectedMiningOres = new java.util.LinkedHashSet<>();
+    private static boolean mineAllSelected = true;
 
     // Estado da integracao Tensura (auto-detecta se o mod tensura estiver instalado)
     private static boolean tensuraIntegrationActive = false;
@@ -129,35 +135,40 @@ public class CompanionScreen extends Screen {
         int top = (this.height - panelHeight) / 2;
 
         // 1. Barra Superior de Navegacao por Abas
-        int tabW = 100;
+        int tabW = 76;
         int tabH = 18;
         int tabY = top + 22;
 
-
-        addRenderableWidget(Button.builder(Component.literal("1. Acoes"), b -> switchTab(Tab.ACTIONS))
-                .bounds(left + 14, tabY, tabW, tabH)
+        addRenderableWidget(Button.builder(Component.literal(currentTab == Tab.ACTIONS ? "[1. Acoes]" : "1. Acoes"), b -> switchTab(Tab.ACTIONS))
+                .bounds(left + 12, tabY, tabW, tabH)
                 .tooltip(Tooltip.create(Component.literal("Ordens e sobrevivencia vanilla")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("2. Skins"), b -> switchTab(Tab.SKINS))
-                .bounds(left + 118, tabY, tabW, tabH)
+        addRenderableWidget(Button.builder(Component.literal(currentTab == Tab.MINING ? "[2. Minerar]" : "2. Minerar"), b -> switchTab(Tab.MINING))
+                .bounds(left + 92, tabY, tabW, tabH)
+                .tooltip(Tooltip.create(Component.literal("Escolha de minerios e painel de mineracao")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(currentTab == Tab.SKINS ? "[3. Skins]" : "3. Skins"), b -> switchTab(Tab.SKINS))
+                .bounds(left + 172, tabY, tabW, tabH)
                 .tooltip(Tooltip.create(Component.literal("Personalizar skin do companheiro")))
                 .build());
 
-        addRenderableWidget(Button.builder(Component.literal("3. Modpacks"), b -> switchTab(Tab.INTEGRATIONS))
-                .bounds(left + 222, tabY, tabW, tabH)
+        addRenderableWidget(Button.builder(Component.literal(currentTab == Tab.INTEGRATIONS ? "[4. Modpacks]" : "4. Modpacks"), b -> switchTab(Tab.INTEGRATIONS))
+                .bounds(left + 252, tabY, tabW, tabH)
                 .tooltip(Tooltip.create(Component.literal("Configurar modpacks e integracoes (Tensura)")))
                 .build());
 
         // Botao Fechar (X)
         addRenderableWidget(Button.builder(Component.literal("X"), b -> this.onClose())
-                .bounds(left + panelWidth - 22, top + 5, 16, 16)
+                .bounds(left + panelWidth - 20, top + 5, 15, 15)
                 .tooltip(Tooltip.create(Component.literal("Fechar painel")))
                 .build());
 
         // 2. Conteudo Especifico da Aba Selecionada
         switch (this.currentTab) {
             case ACTIONS -> initActionsTab(left, top, panelWidth, panelHeight);
+            case MINING -> initMiningTab(left, top, panelWidth, panelHeight);
             case SKINS -> initSkinsTab(left, top, panelWidth, panelHeight);
             case INTEGRATIONS -> initIntegrationsTab(left, top, panelWidth, panelHeight);
         }
@@ -250,9 +261,12 @@ public class CompanionScreen extends Screen {
                 .build());
 
         // Linha 4
-        addRenderableWidget(Button.builder(Component.literal("Minerar"), b -> sendOrder("/companion action mine"))
+        addRenderableWidget(Button.builder(Component.literal("Minerar"), b -> {
+                    switchTab(Tab.MINING);
+                    this.lastStatusMessage = "Escolha os minerios desejados na aba de mineracao.";
+                })
                 .bounds(col1, top + 118, btnW, btnH)
-                .tooltip(Tooltip.create(Component.literal("Ordena a busca e mineracao de minerios proximos.")))
+                .tooltip(Tooltip.create(Component.literal("Abre a aba de mineracao para escolher minerios e iniciar escavacao.")))
                 .build());
 
         addRenderableWidget(Button.builder(Component.literal("Plantar"), b -> sendOrder("/companion action farm"))
@@ -284,7 +298,208 @@ public class CompanionScreen extends Screen {
     }
 
     // ==========================================
-    // ABA 2: APARENCIA & SKINS (JOGADOR E ANIME)
+    // ABA 2: MINERACAO & ESCOLHA DE MINERIOS
+    // ==========================================
+    private void initMiningTab(int left, int top, int panelWidth, int panelHeight) {
+        int oreBtnW = 76;
+        int oreBtnH = 18;
+
+        // Linha 1 de Minerios
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("diamante", "Diamante")), b -> toggleOre("diamante"))
+                .bounds(left + 14, top + 60, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de minerios de diamante")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("ferro", "Ferro")), b -> toggleOre("ferro"))
+                .bounds(left + 94, top + 60, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de minerios de ferro")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("carvao", "Carvao")), b -> toggleOre("carvao"))
+                .bounds(left + 174, top + 60, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de carvao")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("ouro", "Ouro")), b -> toggleOre("ouro"))
+                .bounds(left + 254, top + 60, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de ouro")))
+                .build());
+
+        // Linha 2 de Minerios
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("redstone", "Redstone")), b -> toggleOre("redstone"))
+                .bounds(left + 14, top + 82, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de redstone")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("lapis", "Lapis")), b -> toggleOre("lapis"))
+                .bounds(left + 94, top + 82, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de lapis-lazuli")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("netherite", "Netherite")), b -> toggleOre("netherite"))
+                .bounds(left + 174, top + 82, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de netherite / debris ancestral")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal(oreButtonLabel("cobre", "Cobre")), b -> toggleOre("cobre"))
+                .bounds(left + 254, top + 82, oreBtnW, oreBtnH)
+                .tooltip(Tooltip.create(Component.literal("Alternar mineracao de cobre")))
+                .build());
+
+        // Linha 3: Presets de Selecao Rapida
+        addRenderableWidget(Button.builder(Component.literal(mineAllSelected ? "[X] Todos" : "[ ] Todos"), b -> selectAllOres())
+                .bounds(left + 14, top + 104, 82, 18)
+                .tooltip(Tooltip.create(Component.literal("Minerar qualquer minerio por ordem de valor")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("So Diamante"), b -> selectSoloOre("diamante"))
+                .bounds(left + 100, top + 104, 80, 18)
+                .tooltip(Tooltip.create(Component.literal("Foco exclusivo em minerar apenas diamantes")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("So Ferro"), b -> selectSoloOre("ferro"))
+                .bounds(left + 184, top + 104, 76, 18)
+                .tooltip(Tooltip.create(Component.literal("Foco exclusivo em minerar apenas ferro")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Limpar"), b -> clearOreSelection())
+                .bounds(left + 264, top + 104, 66, 18)
+                .tooltip(Tooltip.create(Component.literal("Desmarcar todos os minerios selecionados")))
+                .build());
+
+        // Linha 4: Minerio Customizado / Modpack
+        this.customOreBox = new EditBox(this.font, left + 14, top + 128, 160, 20, Component.literal("ModOre"));
+        this.customOreBox.setMaxLength(32);
+        this.customOreBox.setHint(Component.literal("Outro minerio (ex: zinc, tin)..."));
+        addRenderableWidget(this.customOreBox);
+
+        addRenderableWidget(Button.builder(Component.literal("+ Adicionar"), b -> addCustomOre())
+                .bounds(left + 178, top + 128, 74, 20)
+                .tooltip(Tooltip.create(Component.literal("Adiciona o minerio digitado a lista de alvos")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("So Este"), b -> setSoloCustomOre())
+                .bounds(left + 256, top + 128, 74, 20)
+                .tooltip(Tooltip.create(Component.literal("Foca exclusivamente no minerio digitado")))
+                .build());
+
+        // Linha 5: Botoes de Acao Principal
+        addRenderableWidget(Button.builder(Component.literal("INICIAR MINERACAO"), b -> startMiningWithSelected())
+                .bounds(left + 14, top + 168, 156, 22)
+                .tooltip(Tooltip.create(Component.literal("Inicia a mineracao com os minerios selecionados")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Parar"), b -> stopMining())
+                .bounds(left + 174, top + 168, 78, 22)
+                .tooltip(Tooltip.create(Component.literal("Interrompe a mineracao e retorna para o modo Me Seguir")))
+                .build());
+
+        addRenderableWidget(Button.builder(Component.literal("Mochila"), b -> sendOrder("/companion inventory"))
+                .bounds(left + 256, top + 168, 74, 22)
+                .tooltip(Tooltip.create(Component.literal("Acessa o inventario do companheiro")))
+                .build());
+    }
+
+    private String oreButtonLabel(String key, String displayName) {
+        if (mineAllSelected) {
+            return "[ ] " + displayName;
+        }
+        return (selectedMiningOres.contains(key) ? "[X] " : "[ ] ") + displayName;
+    }
+
+    private void toggleOre(String key) {
+        mineAllSelected = false;
+        if (selectedMiningOres.contains(key)) {
+            selectedMiningOres.remove(key);
+            if (selectedMiningOres.isEmpty()) {
+                mineAllSelected = true;
+            }
+        } else {
+            selectedMiningOres.add(key);
+        }
+        this.clearWidgets();
+        this.init();
+    }
+
+    private void selectAllOres() {
+        selectedMiningOres.clear();
+        mineAllSelected = true;
+        this.lastStatusMessage = "Modo: minerar todos os minerios por valor.";
+        this.clearWidgets();
+        this.init();
+    }
+
+    private void selectSoloOre(String key) {
+        selectedMiningOres.clear();
+        selectedMiningOres.add(key);
+        mineAllSelected = false;
+        this.lastStatusMessage = "Foco exclusivo definido para: " + key + ".";
+        this.clearWidgets();
+        this.init();
+    }
+
+    private void clearOreSelection() {
+        selectedMiningOres.clear();
+        mineAllSelected = false;
+        this.lastStatusMessage = "Selecao limpa. Escolha os minerios desejados.";
+        this.clearWidgets();
+        this.init();
+    }
+
+    private void addCustomOre() {
+        if (this.customOreBox != null) {
+            String text = this.customOreBox.getValue().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!text.isEmpty()) {
+                mineAllSelected = false;
+                selectedMiningOres.add(text);
+                this.lastStatusMessage = "Adicionado minerio alvo: " + text;
+                this.customOreBox.setValue("");
+                this.clearWidgets();
+                this.init();
+            }
+        }
+    }
+
+    private void setSoloCustomOre() {
+        if (this.customOreBox != null) {
+            String text = this.customOreBox.getValue().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!text.isEmpty()) {
+                selectedMiningOres.clear();
+                selectedMiningOres.add(text);
+                mineAllSelected = false;
+                this.lastStatusMessage = "Foco exclusivo definido para: " + text + ".";
+                this.customOreBox.setValue("");
+                this.clearWidgets();
+                this.init();
+            }
+        }
+    }
+
+    private void startMiningWithSelected() {
+        String filter;
+        if (mineAllSelected || selectedMiningOres.isEmpty()) {
+            filter = "all";
+        } else {
+            filter = String.join(",", selectedMiningOres);
+        }
+        sendOrder("/companion mine " + filter);
+        this.lastStatusMessage = "Iniciando mineracao (" + (filter.equals("all") ? "Todos" : filter) + ")...";
+    }
+
+    private void stopMining() {
+        sendOrder("/companion mode follow");
+        this.lastStatusMessage = "Mineracao interrompida. Voltando a te seguir.";
+    }
+
+    private String getMiningSelectionSummary() {
+        if (mineAllSelected || selectedMiningOres.isEmpty()) {
+            return "Todos os minerios (Geral por valor)";
+        }
+        return String.join(", ", selectedMiningOres);
+    }
+
+    // ==========================================
+    // ABA 3: APARENCIA & SKINS (JOGADOR E ANIME)
     // ==========================================
     private void initSkinsTab(int left, int top, int panelWidth, int panelHeight) {
         // Campo de texto para digitar skin
@@ -468,6 +683,10 @@ public class CompanionScreen extends Screen {
                 applyCustomSkin();
                 return true;
             }
+            if (this.customOreBox != null && this.customOreBox.isFocused()) {
+                addCustomOre();
+                return true;
+            }
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             this.onClose();
@@ -498,11 +717,24 @@ public class CompanionScreen extends Screen {
         // Renderizacao do conteudo especifico de cada aba
         switch (this.currentTab) {
             case ACTIONS -> renderActionsTab(guiGraphics, left, top);
+            case MINING -> renderMiningTab(guiGraphics, left, top);
             case SKINS -> renderSkinsTab(guiGraphics, left, top);
             case INTEGRATIONS -> renderIntegrationsTab(guiGraphics, left, top);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
+    }
+
+    private void renderMiningTab(GuiGraphics guiGraphics, int left, int top) {
+        guiGraphics.drawString(this.font, "Painel de Mineracao: Escolha os Minerios Alvo", left + 14, top + 46, 0xFF55FFFF);
+
+        String summary = "Alvo Atual: " + getMiningSelectionSummary();
+        guiGraphics.drawString(this.font, summary, left + 14, top + 152, 0xFFFFD700);
+
+        String status = (this.lastStatusMessage != null && !this.lastStatusMessage.isEmpty())
+                ? this.lastStatusMessage
+                : "Estrategia: Vein Miner 3D, Escadas 1x2, Tuneis Retos e Cavernas.";
+        guiGraphics.drawString(this.font, status, left + 14, top + 196, 0xFFFFFF55);
     }
 
     private void renderActionsTab(GuiGraphics guiGraphics, int left, int top) {

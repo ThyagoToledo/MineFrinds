@@ -107,7 +107,7 @@ public class CompanionCommands {
                                 .then(Commands.literal("wood").executes(ctx -> executeSetMode(ctx.getSource(), CompanionMode.WOOD)))
                                 .then(Commands.literal("mine")
                                         .executes(ctx -> executeMineCommand(ctx.getSource(), "all"))
-                                        .then(Commands.argument("prioridade", StringArgumentType.word())
+                                        .then(Commands.argument("prioridade", StringArgumentType.greedyString())
                                                 .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(MINE_PRIORITY_SUGGESTIONS, builder))
                                                 .executes(ctx -> executeMineCommand(ctx.getSource(), StringArgumentType.getString(ctx, "prioridade")))
                                         )
@@ -122,7 +122,7 @@ public class CompanionCommands {
                         )
                         .then(Commands.literal("mine")
                                 .executes(ctx -> executeMineCommand(ctx.getSource(), "all"))
-                                .then(Commands.argument("prioridade", StringArgumentType.word())
+                                .then(Commands.argument("prioridade", StringArgumentType.greedyString())
                                         .suggests((ctx, builder) -> SharedSuggestionProvider.suggest(MINE_PRIORITY_SUGGESTIONS, builder))
                                         .executes(ctx -> executeMineCommand(ctx.getSource(), StringArgumentType.getString(ctx, "prioridade")))
                                 )
@@ -330,21 +330,38 @@ public class CompanionCommands {
         companion.setMiningPriority(prio);
         companion.setMode(CompanionMode.MINE);
 
-        String prioName = switch (prio) {
-            case "diamante", "diamond" -> "Diamantes";
-            case "ferro", "iron" -> "Ferro";
-            case "carvao", "coal" -> "Carvao";
-            case "ouro", "gold" -> "Ouro";
-            case "redstone" -> "Redstone";
-            case "lapis" -> "Lapis-lazuli";
-            case "netherite", "debris" -> "Netherite";
-            case "cobre", "copper" -> "Cobre";
-            default -> "Todos os minerios (por valor)";
-        };
+        String prioName = formatPriorityDisplayName(prio);
 
         source.sendSuccess(() -> Component.literal("Modo de mineracao ativado com foco em: " + prioName + "."), true);
         companion.speakToOwner("Iniciando mineracao com foco em: " + prioName + ".");
         return 1;
+    }
+
+    public static String formatPriorityDisplayName(String prio) {
+        if (prio == null || prio.trim().isEmpty() || prio.equalsIgnoreCase("all") || prio.equalsIgnoreCase("qualquer")) {
+            return "Todos os minerios (por valor)";
+        }
+        String[] parts = prio.split("[,;+\\s|]+");
+        List<String> formatted = new java.util.ArrayList<>();
+        for (String part : parts) {
+            String p = part.trim().toLowerCase(Locale.ROOT);
+            if (p.isEmpty()) continue;
+            String name = switch (p) {
+                case "diamante", "diamond" -> "Diamantes";
+                case "ferro", "iron" -> "Ferro";
+                case "carvao", "coal" -> "Carvao";
+                case "ouro", "gold" -> "Ouro";
+                case "redstone" -> "Redstone";
+                case "lapis" -> "Lapis-lazuli";
+                case "netherite", "debris" -> "Netherite";
+                case "cobre", "copper" -> "Cobre";
+                default -> Character.toUpperCase(p.charAt(0)) + p.substring(1);
+            };
+            if (!formatted.contains(name)) {
+                formatted.add(name);
+            }
+        }
+        return formatted.isEmpty() ? "Todos os minerios (por valor)" : String.join(", ", formatted);
     }
 
     private static int executeFarmCommand(CommandSourceStack source, String modeArg) {
@@ -598,8 +615,8 @@ public class CompanionCommands {
         }
 
         if (lower.startsWith("minerar") || lower.startsWith("pega minerio") || lower.startsWith("mine") || lower.startsWith("mina")) {
-            String[] parts = lower.split("\\s+");
-            String prio = parts.length > 1 ? parts[1] : "all";
+            String prio = lower.replaceFirst("^(?:minerar|pega minerio|mine|mina)\\s*", "").trim();
+            if (prio.isEmpty()) prio = "all";
             executeMineCommand(player.createCommandSourceStack(), prio);
             return true;
         }

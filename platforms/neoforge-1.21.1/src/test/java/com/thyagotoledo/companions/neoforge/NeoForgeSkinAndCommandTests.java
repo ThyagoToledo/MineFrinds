@@ -172,4 +172,22 @@ public class NeoForgeSkinAndCommandTests {
         companion.setMode(CompanionMode.FARM);
         assertEquals(CompanionMode.FARM, companion.getMode());
     }
+
+    @Test
+    @DisplayName("Validar formatacao de prioridade de mineracao para um ou multiplos minerios")
+    void testMiningPriorityFormatting() {
+        assertEquals("Todos os minerios (por valor)", CompanionCommands.formatPriorityDisplayName("all"));
+        assertEquals("Todos os minerios (por valor)", CompanionCommands.formatPriorityDisplayName("qualquer"));
+        assertEquals("Todos os minerios (por valor)", CompanionCommands.formatPriorityDisplayName(""));
+        assertEquals("Todos os minerios (por valor)", CompanionCommands.formatPriorityDisplayName(null));
+
+        assertEquals("Diamantes", CompanionCommands.formatPriorityDisplayName("diamante"));
+        assertEquals("Ferro", CompanionCommands.formatPriorityDisplayName("ferro"));
+        assertEquals("Carvao", CompanionCommands.formatPriorityDisplayName("carvao"));
+        assertEquals("Netherite", CompanionCommands.formatPriorityDisplayName("debris"));
+
+        assertEquals("Ferro, Diamantes", CompanionCommands.formatPriorityDisplayName("ferro,diamante"));
+        assertEquals("Ferro, Diamantes, Ouro", CompanionCommands.formatPriorityDisplayName("ferro, diamante, ouro"));
+        assertEquals("Zinc, Tin", CompanionCommands.formatPriorityDisplayName("zinc,tin"));
+    }
 }
