@@ -266,6 +266,26 @@ Escopo desta entrega: implementação no NeoForge 1.21.1 (`TesteMineFrinds`), co
    - Alcance de quebra (`canReachWork`): ajustado para raycast de contorno (`OUTLINE`) e alcance direto para blocos proximos e safras sem caixa de colisao.
    - Recuperacao de stall: ao falhar em alcancar um bloco especifico, descarta o alvo atual e busca outro nas proximidades, retornando ao modo follow apenas apos 3 falhas consecutivas comprovadas.
 
+### Arqueria, corte de copas, mineracao continua e persistencia de modos
+
+1. Quebra de folhas obstrutoras e desintegracao de copa (TreeCapitator):
+   - `handleWoodMode` agora emite raycast de colisao com `ClipContext.Block.COLLIDER` ate o tronco alvo; se encontrar folhas obstrutoras (`isLeafBlock`), quebra a folha imediatamente com drops, eliminando o bloqueio visual do bot.
+   - `clearTreeLeaves`: apos o corte vertical do tronco (ate 24 blocos de altura), toda a copa em raio de 5 blocos e desintegrada com drops normais de mudas, macas e gravetos.
+   - `LocalNavigation.isPassable` e `LocalNavigation.isSafeFloor` foram atualizados para admitir folhas como transitaveis e navegaveis pelo A*.
+
+2. Fim da "descida bloqueada" e mineracao continua:
+   - Removido o limite artificial de 6 degraus em `staircaseTarget()`, permitindo escavacao descendente profunda e continua.
+   - Eliminado o falso alarme e cancelamento de `stairApproachTicks`: ao inves de abortar para `FOLLOW`, o companheiro rotaciona 90 graus no sentido horario (`miningDirection = miningDirection.getClockWise()`), iniciando um novo ramo de descida.
+   - Removida a parada e reversao automatica ao colher 16 blocos; o bot continua a mineracao ininterruptamente.
+
+3. Prioridade de combate refinada e arqueria inteligente:
+   - Filtragem de alvos por ameaca imediata (<= 2 blocos de distancia do companheiro ou do jogador) ou campo de visao frontal (`dirToMob.dot(getLookAngle()) > 0.1`, ~168 graus) com linha de visada desimpedida. Monstros distantes fora do FOV sao ignorados.
+   - Arqueria automatica: para monstros a longa distancia (> 4 blocos), se possuir arco e flechas no inventario (ou modo criativo), equipa o arco, calcula compensacao balistica de curvatura (`pitchCompensation = horizDist * 0.05`), tenciona a corda por 20 ticks e dispara via `releaseUsingItem()`. Em distancias curtas (<= 4 blocos), troca instantaneamente para combate corpo a corpo.
+
+4. Persistencia estrita de modos com comando toggle:
+   - Os modos `WOOD`, `MINE`, `FARM`, `DEFEND` e `STAY` nunca mais revertem sozinhos para `FOLLOW`.
+   - Implementado o padrao toggle em `executeSetMode`: repetir o mesmo comando (ex: `/companion wood` estando em `wood`) desativa a tarefa e retorna o companheiro para `FOLLOW`. Enviar um comando diferente comuta o trabalho sem interrupcoes.
+
 ### Evidência e limites
 
 - Testes JVM: core 31, Forge 1.20.1 15, NeoForge 1.21.1 33, Forge 1.12.2 5. Total esperado desta revisão: 84; conferir relatórios XML do build final antes da publicação.
