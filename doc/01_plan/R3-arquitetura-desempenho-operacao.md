@@ -79,3 +79,5 @@ Começa depois que contratos R0/R1/R2 estabilizarem. Otimização medida substit
 - `CompanionMetrics` registra requisições, sucessos, falhas e rejeições do supervisor sem guardar o conteúdo da conversa.
 
 Ainda pendente: orçamento global de scans/caminhos, decomposição dos controladores, métricas de MSPT/heap e benchmark com quatro/oito NPCs. O cooldown atual é local por companheiro e não substitui o orçamento global.
+
+Em 20/09/2026, a coleta foi fortalecida sem aumentar a frequência global: somente áreas de trabalho recém-quebradas entram numa janela curta de revarredura. Isso resolve drops atrasados/espalhados sem transformar a coleta em busca ampla a cada tick.

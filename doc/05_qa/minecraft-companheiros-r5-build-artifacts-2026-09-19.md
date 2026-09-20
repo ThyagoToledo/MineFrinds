@@ -12,8 +12,8 @@ Os quatro arquivos abaixo foram gerados depois da regressão JVM das três plata
 |---|---|---:|---|
 | `companions-forge-1.12.2-r5candidate.jar` | Forge 14.23.5.2860 / 1.12.2 | 12.399 bytes | `C33F317D33206BD8735C46E310B3D98D0143D511E26306EF05B71657F7696C8D` |
 | `companions-forge-1.20.1-r5candidate.jar` | Forge 47.x / 1.20.1 | 131.531 bytes | `C3EE8F8E705CE4C4BD38F14AE1BD27696003AD4B52AEE7F584551F02A412DEE9` |
-| `companions-neoforge-1.21.1-r5candidate.jar` | NeoForge 21.1.251 / 1.21.1 | 197.168 bytes | `B3BAAF8FB5489121DE20C77A97DA9EF7A966D10CB413F1368DA825558B4A1B6A` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-r5candidate.jar` | NeoForge 21.1.251 / 1.21.1 | 197.210 bytes | `0C0BEBF164446B97801A1026AFB0B17E8504948500C97B8A6C2A44CB890AAE40` |
+| `companions-neoforge-1.21.1-r5candidate.jar` | NeoForge 21.1.251 / 1.21.1 | 197.881 bytes | `6CE2D1F8649E82081B7DF185DD2E402CE692E8FB6E44D1655F7CC971A6CA0744` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-r5candidate.jar` | NeoForge 21.1.251 / 1.21.1 | 197.923 bytes | `5A6061C5F1597D81C9AA6696972F8D11E7602D0C38C30B2F32BF0AF2D446F96D` |
 
 ## Evidência de build
 

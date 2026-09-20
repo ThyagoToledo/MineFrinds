@@ -223,3 +223,9 @@ Essa entrega fecha apenas a parte de ordenação do R1.1. Ainda faltam intents t
 - Validação JVM sequencial deste ciclo: core 29, Forge 1.20.1 15, NeoForge 1.21.1 25 e Forge 1.12.2 5; total de 74 testes aprovados. Isso não substitui a execução de cliente/servidor e medições de RAM/MSPT nos saves descartáveis.
 
 O estado correto permanece: R0, R1, R2 e R3 avançaram, mas continuam parciais; R4 depende de assets/UX finais; R5 está preparado com inventário automatizado, porém sem homologação funcional declarada.
+
+## Correção de coleta de drops — 20/09/2026
+
+O fake player não dependia mais somente do raio imediato do próprio corpo. A implementação agora mantém uma `pendingDropCollectionBox` por 100 ticks após cada quebra de madeira, minério ou safra, revisitando a área a cada cinco ticks. A caixa é unida durante o corte em cascata, então os drops de troncos altos também entram na coleta depois do pickup delay normal. O código contabiliza a diferença da pilha antes/depois de `Inventory.add`, preservando a parte que não couber quando o inventário estiver cheio.
+
+A suíte NeoForge passou após a alteração e um novo candidato foi gerado. O JAR instalado em `TesteMineFrinds` agora tem SHA-256 `6CE2D1F8649E82081B7DF185DD2E402CE692E8FB6E44D1655F7CC971A6CA0744`.

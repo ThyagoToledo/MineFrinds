@@ -73,6 +73,8 @@ public class CompanionServerPlayer extends ServerPlayer {
     private int workBreakTicks = 0;
     private int harvestedCount = 0;
     private long nextWorkScanTick = 0L;
+    private AABB pendingDropCollectionBox = null;
+    private long pendingDropCollectionUntilTick = 0L;
 
     // Meta pendente de crafting autonomo
     private String pendingCraftItem = null;
@@ -190,10 +192,13 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         ServerPlayer owner = this.server.getPlayerList().getPlayer(this.ownerUuid);
 
-        // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos).
-        // A busca de entidades e limitada a 4 Hz para evitar custo por NPC a cada tick.
+        // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos) e
+        // das areas onde uma tarefa acabou de quebrar blocos. A janela extra
+        // cobre o pickup delay normal dos ItemEntity e drops espalhados por
+        // arvores, minerios e safras.
         if (this.tickCount % 5 == 0) {
             pickupNearbyItems();
+            collectPendingDrops();
         }
 
         // 3. Execucao de acordo com o modo atual
@@ -347,22 +352,63 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void pickupNearbyItems() {
-        AABB vacuumBox = this.getBoundingBox().inflate(3.0, 1.5, 3.0);
-        List<ItemEntity> items = this.level().getEntitiesOfClass(ItemEntity.class, vacuumBox);
+        pickupItemsInArea(this.getBoundingBox().inflate(3.0, 1.5, 3.0));
+    }
+
+    /** Mantem a coleta ativa por alguns segundos depois de uma quebra. */
+    private void requestDropCollection(BlockPos center) {
+        if (center == null) return;
+        AABB area = new AABB(center).inflate(3.0, 2.0, 3.0);
+        if (pendingDropCollectionBox == null) {
+            pendingDropCollectionBox = area;
+        } else {
+            pendingDropCollectionBox = union(pendingDropCollectionBox, area);
+        }
+        pendingDropCollectionUntilTick = Math.max(pendingDropCollectionUntilTick, this.tickCount + 100L);
+    }
+
+    private void collectPendingDrops() {
+        if (pendingDropCollectionBox == null) return;
+        if (this.tickCount > pendingDropCollectionUntilTick) {
+            pendingDropCollectionBox = null;
+            pendingDropCollectionUntilTick = 0L;
+            return;
+        }
+        pickupItemsInArea(pendingDropCollectionBox);
+    }
+
+    private void pickupItemsInArea(AABB collectionBox) {
+        List<ItemEntity> items = this.level().getEntitiesOfClass(ItemEntity.class, collectionBox);
         for (ItemEntity itemEntity : items) {
             if (itemEntity.isAlive() && !itemEntity.hasPickUpDelay()) {
                 ItemStack stack = itemEntity.getItem();
                 if (!stack.isEmpty()) {
                     int originalCount = stack.getCount();
-                    if (this.getInventory().add(stack)) {
-                        this.take(itemEntity, originalCount - stack.getCount());
-                        if (stack.isEmpty()) {
-                            itemEntity.discard();
-                        }
+                    // Inventory.add pode mover apenas parte da pilha quando
+                    // o inventario esta quase cheio. Sempre contabilize o
+                    // delta, mesmo quando o metodo retorna false.
+                    this.getInventory().add(stack);
+                    int moved = originalCount - stack.getCount();
+                    if (moved > 0) {
+                        this.take(itemEntity, moved);
+                    }
+                    if (stack.isEmpty()) {
+                        itemEntity.discard();
                     }
                 }
             }
         }
+    }
+
+    private static AABB union(AABB first, AABB second) {
+        return new AABB(
+                Math.min(first.minX, second.minX),
+                Math.min(first.minY, second.minY),
+                Math.min(first.minZ, second.minZ),
+                Math.max(first.maxX, second.maxX),
+                Math.max(first.maxY, second.maxY),
+                Math.max(first.maxZ, second.maxZ)
+        );
     }
 
     private void handleStayMode(ServerPlayer owner) {
@@ -458,6 +504,7 @@ public class CompanionServerPlayer extends ServerPlayer {
 
                 // Destroi o bloco base
                 this.level().destroyBlock(targetWorkPos, true, this);
+                requestDropCollection(targetWorkPos);
                 harvestedCount++;
 
                 // Cascata: derruba troncos conectados verticalmente para cima ate 16 blocos
@@ -469,6 +516,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                             break;
                         }
                         this.level().destroyBlock(currentAbove, true, this);
+                        requestDropCollection(currentAbove);
                         harvestedCount++;
                         currentAbove = currentAbove.above();
                     } else {
@@ -539,6 +587,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
 
                 this.level().destroyBlock(targetWorkPos, true, this);
+                requestDropCollection(targetWorkPos);
                 harvestedCount++;
                 targetWorkPos = null;
                 workBreakTicks = 0;
@@ -604,6 +653,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                         return;
                     }
                     this.level().destroyBlock(targetWorkPos, true, this);
+                    requestDropCollection(targetWorkPos);
                     targetWorkPos = null;
                     workBreakTicks = 0;
                 }

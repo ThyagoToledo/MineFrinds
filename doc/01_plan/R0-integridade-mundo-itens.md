@@ -75,3 +75,9 @@ Não depende de R2. Fornece a camada de execução necessária para que intenç�
 - O core recebeu `CraftTransaction`, plano imutável com `SUCCESS`, `INVALID`, `INSUFFICIENT_INPUT` e `OUTPUT_FULL`; o commit aplica consumo e saída somente depois de todas as pré-condições, preservando o inventário em falhas.
 
 Isso fecha o contrato de quantidade exata e cria o primeiro adaptador puro para a futura integração com `RecipeManager`. A receita NeoForge ainda usa a tabela manual existente; a troca para receitas efetivas, itens restantes e rollback de `ItemStack` continua necessária para declarar R0 concluído.
+
+### Correção de coleta de drops — 20/09/2026
+
+- Depois de cada quebra em WOOD, MINE e FARM, o companheiro registra a posição em uma área de coleta pendente por 100 ticks.
+- A área é revisitada a cada cinco ticks, cobrindo o pickup delay normal e os drops espalhados pela copa/vein miner de madeira, minério e safra.
+- A coleta agora contabiliza o delta da pilha mesmo quando o inventário está parcialmente cheio; itens que não couberem permanecem no `ItemEntity` em vez de desaparecerem.
