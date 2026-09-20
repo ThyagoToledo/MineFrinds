@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Arqueria com Arco e Flecha, Desintegracao de Copa (TreeCapitator), Quebra de Folhas Obstrutoras, Mineracao Continua em Escada e Persistencia de Modos com Toggle | 247.297 bytes | `AB0B33AEA616836E8F22DC2F9CBC3C6AB7E71B2F9F979C2BFB5F33CDEDC8975A` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com arqueria, mineracao continua e integracao Tensura completa | 247.340 bytes | `654ED33C840665D1ECA59760AC327E25B6A832E788F81B41CAF2833A2A351133` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Orientacao Corporal Sincronizada, Movimentacao Frontal sem Andar de Costas, Arqueria e Mineracao Continua | 247.378 bytes | `5AD3FD967FC95847E4151A2574E2DD07D8AD3BB9E5EA3D28ED90AB56ABD6971A` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com orientacao corporal sincronizada e integracao Tensura completa | 247.421 bytes | `B56C4D79017C4353B4C4B0A3A4272A35D6DFFA0F56E81E6E5EE5C68782516370` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
 

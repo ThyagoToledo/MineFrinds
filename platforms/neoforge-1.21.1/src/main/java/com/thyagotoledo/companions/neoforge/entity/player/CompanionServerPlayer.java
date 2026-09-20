@@ -644,6 +644,11 @@ public class CompanionServerPlayer extends ServerPlayer {
         double len = direction.length();
         if (len > 1.0e-4) {
             direction = direction.scale(speed / len);
+            float moveYaw = (float) (Mth.atan2(direction.z, direction.x) * (180.0 / Math.PI)) - 90.0F;
+            float yaw = Mth.approachDegrees(this.getYRot(), moveYaw, 35.0f);
+            this.setYRot(yaw);
+            this.setYHeadRot(yaw);
+            this.setYBodyRot(yaw);
         } else {
             direction = Vec3.ZERO;
         }
@@ -659,11 +664,11 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     private void lookAround(ServerPlayer owner) {
         if (idleLookTarget == null || this.tickCount >= nextIdleLookTick) {
-            nextIdleLookTick = this.tickCount + 40 + this.random.nextInt(60);
-            idleLookTarget = owner != null && this.random.nextInt(4) == 0
+            nextIdleLookTick = this.tickCount + 50 + this.random.nextInt(60);
+            idleLookTarget = owner != null && this.random.nextInt(3) != 0
                     ? owner.getEyePosition()
-                    : this.position().add(this.random.nextDouble() * 12 - 6,
-                            1.0 + this.random.nextDouble() * 2, this.random.nextDouble() * 12 - 6);
+                    : this.position().add(this.random.nextDouble() * 8 - 4,
+                            1.0 + this.random.nextDouble() * 1.5, this.random.nextDouble() * 8 - 4);
         }
         lookAtPosition(idleLookTarget);
     }
@@ -1160,13 +1165,11 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
 
             if (distSq > 9.0) {
-                lookAtEntity(owner);
-                Vec3 diff = owner.position().subtract(this.position());
                 moveToward(owner.position(), 0.24);
             } else {
                 Vec3 delta = this.getDeltaMovement();
                 this.setDeltaMovement(delta.x * 0.5, delta.y, delta.z * 0.5);
-                lookAround(owner);
+                lookAtEntity(owner);
             }
         }
     }
@@ -1591,10 +1594,11 @@ public class CompanionServerPlayer extends ServerPlayer {
         double dXZ = Math.sqrt(diff.x * diff.x + diff.z * diff.z);
         float targetYaw = (float) (Mth.atan2(diff.z, diff.x) * (180.0 / Math.PI)) - 90.0F;
         float targetPitch = (float) (-(Mth.atan2(diff.y, dXZ) * (180.0 / Math.PI)));
-        float yaw = Mth.approachDegrees(this.getYRot(), targetYaw, 12.0f);
+        float yaw = Mth.approachDegrees(this.getYRot(), targetYaw, 35.0f);
         this.setYRot(yaw);
-        this.setXRot(Mth.approachDegrees(this.getXRot(), targetPitch, 8.0f));
+        this.setXRot(Mth.approachDegrees(this.getXRot(), targetPitch, 20.0f));
         this.setYHeadRot(yaw);
+        this.setYBodyRot(yaw);
     }
 
     public void speakToOwner(String message) {
