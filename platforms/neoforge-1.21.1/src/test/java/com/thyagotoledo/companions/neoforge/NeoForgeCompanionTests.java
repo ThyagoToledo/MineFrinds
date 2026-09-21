@@ -130,6 +130,10 @@ public class NeoForgeCompanionTests {
 
         questService.setSelectedQuestId(playerUuid, "quest_tensura_slime");
         assertEquals("quest_tensura_slime", questService.getSelectedQuestId(playerUuid));
+        UUID otherPlayerUuid = UUID.randomUUID();
+        questService.setSelectedQuestId(otherPlayerUuid, "quest_other_player");
+        assertEquals("quest_tensura_slime", questService.getSelectedQuestId(playerUuid));
+        assertEquals("quest_other_player", questService.getSelectedQuestId(otherPlayerUuid));
 
         // Teste de invalidacao de cache pos /reload
         assertDoesNotThrow(questService::invalidateCache);

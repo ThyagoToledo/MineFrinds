@@ -2,6 +2,9 @@ package com.thyagotoledo.companions.neoforge.entity.player;
 
 import com.mojang.authlib.GameProfile;
 import com.thyagotoledo.companions.core.model.CompanionMode;
+import com.thyagotoledo.companions.core.planner.ActionResult;
+import com.thyagotoledo.companions.core.planner.TaskPlan;
+import com.thyagotoledo.companions.core.planner.TaskStep;
 import com.thyagotoledo.companions.neoforge.service.EquipmentPolicy;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
@@ -116,6 +119,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     private int pendingCraftCount;
     private long pendingCraftUntil;
     private long nextCraftRetry;
+    private TaskPlan activeTaskPlan;
 
     public CompanionServerPlayer(MinecraftServer server, ServerLevel level, GameProfile profile,
                                 ClientInformation clientInfo, UUID ownerUuid,
@@ -583,6 +587,15 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (autonomous) {
             setMode(CompanionMode.WORK);
         }
+    }
+
+    /** Plano curto mantido no servidor; respostas externas nunca alteram o mundo diretamente. */
+    public TaskPlan getActiveTaskPlan() { return activeTaskPlan; }
+
+    private void beginCraftPlan() {
+        activeTaskPlan = new TaskPlan(CompanionManager.getRevision(ownerUuid),
+                java.util.Collections.singletonList(new TaskStep("craft", 16)));
+        activeTaskPlan.startCurrent();
     }
 
     private void handleAutonomousMode(ServerPlayer owner) {
@@ -2158,7 +2171,13 @@ public class CompanionServerPlayer extends ServerPlayer {
             speakToOwner("Receita ou quantidade invalida / Invalid recipe or quantity (1-64).");
             return;
         }
+        beginCraftPlan();
         boolean crafted = com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, item, count);
+        if (activeTaskPlan != null) {
+            activeTaskPlan.applyCurrent(crafted
+                    ? ActionResult.succeeded(count, "recipe_committed")
+                    : ActionResult.progress(0, "waiting_for_ingredients_or_station"));
+        }
         pendingCraftItem = crafted ? null : item;
         pendingCraftCount = count;
         pendingCraftUntil = this.tickCount + 1200;
@@ -2178,6 +2197,9 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
         if (com.thyagotoledo.companions.neoforge.service.RecipeCraftingService.craft(this, pendingCraftItem, pendingCraftCount)) {
             pendingCraftItem = null;
+            if (activeTaskPlan != null && activeTaskPlan.current() != null) {
+                activeTaskPlan.applyCurrent(ActionResult.succeeded(pendingCraftCount, "recipe_committed"));
+            }
             finishWork();
             speakToOwner("Fabricado e guardado na mochila / Crafted and stored in my bag.");
             return true;

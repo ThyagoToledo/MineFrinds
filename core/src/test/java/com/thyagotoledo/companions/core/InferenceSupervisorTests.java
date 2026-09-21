@@ -9,6 +9,8 @@ import com.thyagotoledo.companions.core.model.CompanionCommandRequest;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,5 +88,84 @@ public class InferenceSupervisorTests {
                 java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
                 "/kill @e", "pt_br", 4L);
         assertFalse(unknown.isValid());
+    }
+
+    @Test
+    void shutdownCompletesQueuedRequestsAndCancelsTransport() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CompletableFuture<String> transportFuture = new CompletableFuture<>();
+        InferenceTransport transport = (prompt, systemPrompt, timeoutMs) -> {
+            started.countDown();
+            return transportFuture;
+        };
+        InferenceSupervisor supervisor = new InferenceSupervisor(true, transport, 1000, 2, 5000);
+        CompletableFuture<String> running = supervisor.completeAsync("one", "system");
+        assertTrue(started.await(1, TimeUnit.SECONDS));
+        CompletableFuture<String> queued = supervisor.completeAsync("two", "system");
+
+        supervisor.shutdown();
+
+        assertTrue(running.isCompletedExceptionally());
+        assertTrue(queued.isCompletedExceptionally());
+        assertTrue(transportFuture.isCancelled());
+        assertFalse(supervisor.isAvailable());
+    }
+
+    @Test
+    void timeoutCompletesRequestAndDoesNotLeaveItInFlight() throws Exception {
+        InferenceTransport transport = (prompt, systemPrompt, timeoutMs) -> new CompletableFuture<>();
+        InferenceSupervisor supervisor = new InferenceSupervisor(true, transport, 1000, 1, 5000);
+        try {
+            CompletableFuture<String> result = supervisor.completeAsync("slow", "system");
+            assertThrows(Exception.class, result::get);
+            assertEquals(0, supervisor.getPendingQueueSize());
+        } finally {
+            supervisor.shutdown();
+        }
+    }
+
+    @Test
+    void fullQueueRejectsWithoutCreatingAnUnboundedBacklog() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        InferenceTransport transport = (prompt, systemPrompt, timeoutMs) -> CompletableFuture.supplyAsync(() -> {
+            try { release.await(2, TimeUnit.SECONDS); } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            return "ok";
+        });
+        InferenceSupervisor supervisor = new InferenceSupervisor(true, transport, 1000, 1, 5000);
+        try {
+            CompletableFuture<String> first = supervisor.completeAsync("one", "system");
+            CompletableFuture<String> second = supervisor.completeAsync("two", "system");
+            CompletableFuture<String> third = supervisor.completeAsync("three", "system");
+            assertTrue(third.isCompletedExceptionally());
+            release.countDown();
+            assertEquals("ok", first.get(2, TimeUnit.SECONDS));
+            assertEquals("ok", second.get(2, TimeUnit.SECONDS));
+        } finally {
+            release.countDown();
+            supervisor.shutdown();
+        }
+    }
+
+    @Test
+    void deadlineIncludesTimeWaitingInQueue() throws Exception {
+        CountDownLatch started = new CountDownLatch(1);
+        CompletableFuture<String> blocked = new CompletableFuture<>();
+        InferenceTransport transport = (prompt, systemPrompt, timeoutMs) -> {
+            started.countDown();
+            return blocked;
+        };
+        InferenceSupervisor supervisor = new InferenceSupervisor(true, transport, 1000, 2, 5000);
+        try {
+            CompletableFuture<String> first = supervisor.completeAsync("first", "system");
+            assertTrue(started.await(1, TimeUnit.SECONDS));
+            CompletableFuture<String> queued = supervisor.completeAsync("queued", "system");
+            assertThrows(Exception.class, () -> queued.get(2, TimeUnit.SECONDS));
+            assertTrue(first.isCompletedExceptionally());
+            assertTrue(blocked.isCancelled());
+        } finally {
+            supervisor.shutdown();
+        }
     }
 }

@@ -5,6 +5,8 @@ import com.thyagotoledo.companions.core.quest.Quest;
 import com.thyagotoledo.companions.core.quest.QuestService;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
 
 /**
@@ -15,7 +17,7 @@ public class NeoForgeQuestService implements QuestService {
 
     private final DefaultQuestService fallbackService;
     private final boolean ftbQuestsLoaded;
-    private String selectedQuestId;
+    private final Map<UUID, String> selectedQuestIds = new ConcurrentHashMap<>();
 
     public NeoForgeQuestService() {
         this(false);
@@ -59,10 +61,12 @@ public class NeoForgeQuestService implements QuestService {
     }
 
     public String getSelectedQuestId(UUID playerUuid) {
-        return selectedQuestId;
+        return playerUuid != null ? selectedQuestIds.get(playerUuid) : null;
     }
 
     public void setSelectedQuestId(UUID playerUuid, String questId) {
-        this.selectedQuestId = questId;
+        if (playerUuid == null) return;
+        if (questId == null || questId.trim().isEmpty()) selectedQuestIds.remove(playerUuid);
+        else selectedQuestIds.put(playerUuid, questId.trim());
     }
 }
