@@ -27,11 +27,25 @@ public final class DecisionResult {
     }
 
     public static DecisionResult accept(String candidateId, double confidence, String provider, String reason) {
-        return new DecisionResult(candidateId, Outcome.ACCEPT, confidence, null, provider, reason);
+        return accept(candidateId, confidence, null, provider, reason);
+    }
+
+    /**
+     * Cria uma decisão aceita com a distribuição completa produzida pelo scorer.
+     * A sobrecarga antiga é mantida para providers determinísticos e compatibilidade.
+     */
+    public static DecisionResult accept(String candidateId, double confidence,
+                                        Map<String, Double> probabilities,
+                                        String provider, String reason) {
+        return new DecisionResult(candidateId, Outcome.ACCEPT, confidence, probabilities, provider, reason);
     }
 
     public static DecisionResult abstain(String provider, String reason) {
-        return new DecisionResult("", Outcome.ABSTAIN, 0.0, null, provider, reason);
+        return abstain(null, provider, reason);
+    }
+
+    public static DecisionResult abstain(Map<String, Double> probabilities, String provider, String reason) {
+        return new DecisionResult("", Outcome.ABSTAIN, 0.0, probabilities, provider, reason);
     }
 
     public static DecisionResult error(String provider, String reason) {

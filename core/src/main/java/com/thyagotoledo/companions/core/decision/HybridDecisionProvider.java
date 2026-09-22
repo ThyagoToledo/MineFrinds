@@ -7,6 +7,14 @@ public final class HybridDecisionProvider implements DecisionProvider {
     private final DecisionProvider rules;
     private final DecisionProvider secondary;
 
+    public HybridDecisionProvider() {
+        this(new RulesDecisionProvider(), new LocalDecisionProvider());
+    }
+
+    public HybridDecisionProvider(DecisionProvider rules) {
+        this(rules, new LocalDecisionProvider());
+    }
+
     public HybridDecisionProvider(DecisionProvider rules, DecisionProvider secondary) {
         this.rules = rules != null ? rules : new RulesDecisionProvider();
         this.secondary = secondary;

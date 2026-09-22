@@ -31,6 +31,9 @@ public final class HttpInferenceTransport implements InferenceTransport {
             if (!"http".equalsIgnoreCase(url.getProtocol()) && !"https".equalsIgnoreCase(url.getProtocol())) {
                 throw new IllegalArgumentException("Apenas HTTP/HTTPS sao aceitos");
             }
+            if (!isLoopbackHost(url.getHost())) {
+                throw new IllegalArgumentException("Inferencia local aceita somente endpoint de loopback");
+            }
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
@@ -80,5 +83,12 @@ public final class HttpInferenceTransport implements InferenceTransport {
         return raw.replace("\\", "\\\\").replace("\"", "\\\"")
                 .replace("\b", "\\b").replace("\f", "\\f")
                 .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        if (host == null) return false;
+        String normalized = host.toLowerCase(java.util.Locale.ROOT);
+        return "localhost".equals(normalized) || "127.0.0.1".equals(normalized)
+                || "::1".equals(normalized) || "[::1]".equals(normalized);
     }
 }

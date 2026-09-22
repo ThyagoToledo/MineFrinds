@@ -470,6 +470,14 @@ public class CoreTestSuite {
         assertEquals(0, client.getPendingQueueSize());
         assertDoesNotThrow(client::shutdown);
     }
+
+    @Test
+    public void testHttpInferenceTransportRejectsNonLoopbackEndpoint() throws Exception {
+        com.thyagotoledo.companions.core.ai.HttpInferenceTransport transport =
+                new com.thyagotoledo.companions.core.ai.HttpInferenceTransport("https://example.com/v1/chat/completions");
+        java.util.concurrent.CompletableFuture<String> result = transport.completeAsync("hello", "system", 1000);
+        assertThrows(Exception.class, result::get);
+    }
 }
 
 
