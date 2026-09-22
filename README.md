@@ -10,7 +10,7 @@
   <a href="https://files.minecraftforge.net/"><img src="https://img.shields.io/badge/Forge-1.20.1%20%7C%201.12.2-DFAD32?style=for-the-badge&logo=curseforge&logoColor=black" alt="Minecraft Forge" /></a>
   <a href="https://neoforged.net/"><img src="https://img.shields.io/badge/NeoForge-1.21.1-EA6C24?style=for-the-badge&logo=neoforge&logoColor=white" alt="NeoForge" /></a>
   <a href="https://gradle.org/"><img src="https://img.shields.io/badge/Gradle-8.8-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle" /></a>
-  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Core%20tests-50%20passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
+  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Core%20tests-51%20passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
 </p>
 
 ---
@@ -87,7 +87,7 @@ cd MineFrinds
 
 ### 2. Executar as Suites de Teste
 ```bash
-# Testes do modulo universal core (50 testes no estado atual)
+# Testes do modulo universal core (51 testes no estado atual)
 cd platforms/forge-1.20.1
 ./gradlew :minecraft-companheiros:core:test
 

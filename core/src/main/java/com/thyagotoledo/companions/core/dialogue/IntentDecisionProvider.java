@@ -1,6 +1,7 @@
 package com.thyagotoledo.companions.core.dialogue;
 
 import com.thyagotoledo.companions.core.decision.DecisionCandidate;
+import com.thyagotoledo.companions.core.decision.ChoiceQuestion;
 import com.thyagotoledo.companions.core.decision.DecisionProvider;
 import com.thyagotoledo.companions.core.decision.DecisionRequest;
 import com.thyagotoledo.companions.core.decision.DecisionResult;
@@ -49,7 +50,9 @@ public final class IntentDecisionProvider {
         Map<String, String> context = new HashMap<>();
         context.put("locale", locale != null ? locale : "en_us");
         DecisionRequest request = new DecisionRequest(UUID.randomUUID(), companionId, 0L, 0L,
-                System.nanoTime() + 50_000_000L, locale, input, context, CANDIDATES);
+                System.nanoTime() + 50_000_000L, locale, input, context, CANDIDATES,
+                Collections.<com.thyagotoledo.companions.core.decision.DecisionQuestion>singletonList(
+                        new ChoiceQuestion("intent", "Classify only the expressed intent.", optionIds())));
         return provider.decide(request)
                 .thenApply(IntentDecisionProvider::toIntent)
                 .exceptionally(error -> null);
@@ -61,6 +64,12 @@ public final class IntentDecisionProvider {
 
     public static List<DecisionCandidate> candidates() {
         return CANDIDATES;
+    }
+
+    private static List<String> optionIds() {
+        java.util.ArrayList<String> ids = new java.util.ArrayList<>();
+        for (DecisionCandidate candidate : CANDIDATES) ids.add(candidate.getId());
+        return ids;
     }
 
     private static Intent toIntent(DecisionResult result) {

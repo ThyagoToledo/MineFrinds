@@ -18,10 +18,19 @@ public final class DecisionRequest {
     private final String message;
     private final Map<String, String> context;
     private final List<DecisionCandidate> candidates;
+    private final List<DecisionQuestion> questions;
 
     public DecisionRequest(UUID requestId, UUID companionId, long taskRevision, long snapshotRevision,
                            long deadlineNanos, String locale, String message,
                            Map<String, String> context, List<DecisionCandidate> candidates) {
+        this(requestId, companionId, taskRevision, snapshotRevision, deadlineNanos, locale, message,
+                context, candidates, Collections.<DecisionQuestion>emptyList());
+    }
+
+    public DecisionRequest(UUID requestId, UUID companionId, long taskRevision, long snapshotRevision,
+                           long deadlineNanos, String locale, String message,
+                           Map<String, String> context, List<DecisionCandidate> candidates,
+                           List<DecisionQuestion> questions) {
         this.requestId = requestId != null ? requestId : UUID.randomUUID();
         this.companionId = companionId;
         this.taskRevision = Math.max(0L, taskRevision);
@@ -44,6 +53,13 @@ public final class DecisionRequest {
             }
         }
         this.candidates = Collections.unmodifiableList(options);
+        List<DecisionQuestion> questionCopy = new ArrayList<>();
+        if (questions != null) {
+            for (DecisionQuestion question : questions) {
+                if (question != null && questionCopy.size() < 16) questionCopy.add(question);
+            }
+        }
+        this.questions = Collections.unmodifiableList(questionCopy);
     }
 
     public UUID getRequestId() { return requestId; }
@@ -55,6 +71,7 @@ public final class DecisionRequest {
     public String getMessage() { return message; }
     public Map<String, String> getContext() { return context; }
     public List<DecisionCandidate> getCandidates() { return candidates; }
+    public List<DecisionQuestion> getQuestions() { return questions; }
 
     public boolean isExpired(long nowNanos) { return deadlineNanos > 0L && nowNanos >= deadlineNanos; }
 
