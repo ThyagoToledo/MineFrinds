@@ -16,10 +16,10 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.248+ | 1.21.1 | Padrao / Alpha.2: Anti-Stuck contra paredes, Visao Noturna, Colocacao e Craft Autonomo de Tochas, Aba de Mineracao na GUI e Vein Miner | 261.883 bytes | `D3DD92FD5486042DBB3D3025124865A33788E71B324C2DE34E625700D7C841EF` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.244+ | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com Anti-Stuck, Visao Noturna, Tochas, Aba de Mineracao na GUI, Vein Miner e integracao Tensura | 261.927 bytes | `B207596D61F9CDFAE0F7E2E1976BDDA935C018DC782F04A4413DD1F5EA748EAE` |
-| `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0+ | 1.20.1 | Padrao / Modpacks Vanilla-like e FTB | 112.884 bytes | `3A904FAC38392684C5F27F578754FF22CFAAA71519878BD651788770856E6CA4` |
-| `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / Java 8 Puro | 12.398 bytes | `F8FCA6016E7D8A2E7CBB56997AB7D05EBFF13E15DC04F27AB2F1EC1136473530` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 compilado em 2026-09-21 | 300.075 bytes | `D1AF8103CB0F72BF08FDEC2B547FB89C8A5E00F422D9B9393EBFD458F891AB45` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 compilado em 2026-09-21 | 300.118 bytes | `115C9857B04E77ECE0FBF6854B506B41F981AC5053E817B60148D4130D36AEBA` |
+| `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0 | 1.20.1 | Padrao / `reobfJar` compilado em 2026-09-21 | 172.929 bytes | `3518CC71DCE01E547663BFBC44CD0FC5249F913EDD16616BDFE005E4244BE5BC` |
+| `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / compilado em 2026-09-21 | 14.235 bytes | `E8FA84D3E86E825EE6D80698AAFE57BE88DF50296A5D05C37BD5347831D74A4B` |
 
 ---
 
@@ -123,7 +123,21 @@ O mod disponibiliza 3 formas para abrir o painel de controle do companheiro dent
 
 ---
 
-## Release candidate 0.2.0-alpha.1
+## Release candidate 0.2.0-alpha.2
+
+Os quatro artefatos acima foram gerados a partir do commit `cd82599` e copiados para as pastas de release candidate correspondentes. O JAR NeoForge padrao foi instalado na instancia de teste abaixo.
+
+### Instancia de teste atualizada
+
+- Instancia: `C:\Users\thyag\curseforge\minecraft\Instances\TesteMineFrinds`
+- Loader: NeoForge 21.1.251 / Minecraft 1.21.1
+- JAR instalado: `mods/companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar`
+- Backup do JAR anterior: `backups/minefriends-20260921-2215/`
+- Hash SHA-256 instalado: `D1AF8103CB0F72BF08FDEC2B547FB89C8A5E00F422D9B9393EBFD458F891AB45`
+
+O JAR anterior foi movido para o backup antes da substituicao. Nenhum JAR de outro loader foi colocado nessa instancia.
+
+## Release candidate 0.2.0-alpha.1 (historico)
 
 Os binários atualizados ficam separados dos JARs históricos `0.1.0` em:
 
@@ -138,7 +152,7 @@ jars-do-mod-para-cada-versao/release-candidates/0.2.0-alpha.1/
 | `companions-neoforge-1.21.1-r5candidate.jar` | NeoForge 1.21.1 | `6CE2D1F8649E82081B7DF185DD2E402CE692E8FB6E44D1655F7CC971A6CA0744` |
 | `companions-neoforge-1.21.1-tensura-neo-otherworld-r5candidate.jar` | NeoForge 1.21.1 / Tensura | `5A6061C5F1597D81C9AA6696972F8D11E7602D0C38C30B2F32BF0AF2D446F96D` |
 
-O candidato NeoForge padrão foi instalado na instância `TesteMineFrinds` com o nome compatível `companions-neoforge-1.21.1-0.1.0.jar`; o conteúdo corresponde ao hash acima. Os JARs históricos não foram sobrescritos.
+Os candidatos alpha.1 permanecem preservados para reproducibilidade. A instalacao de teste usa exclusivamente o artefato alpha.2 descrito na secao anterior.
 
 ---
 
