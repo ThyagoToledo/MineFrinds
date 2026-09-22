@@ -6,6 +6,6 @@ O planejamento foi revisado em 21/09/2026 e centralizado no vault, conforme a re
 
 A revisão substitui a primeira proposta: corrige as fontes oficiais, registra a auditoria do código, revisita R0–R5 e detalha R6–R12 com tecnologias, contratos, dependências, critérios de aceite e rollback.
 
-Direção: execução competente offline primeiro; Jev remoto e scorers comunitários são experimentos opcionais. O documento é planejamento, não evidência de implementação ou homologação.
+Direção: execução competente offline primeiro. O produto não usará chave de API, serviço pago ou dependência de internet. Jev remoto fica restrito a pesquisa opcional fora do modpack; a implementação oficial será local, gratuita e desligável. O documento é planejamento, não evidência de implementação ou homologação.
 
 Correção de fonte: a documentação oficial vinculada pela TypeSafe está em [docs.typesafe.ai](https://docs.typesafe.ai/introduction). A versão anterior atribuiu incorretamente caráter oficial a jevtypesafe.org.
