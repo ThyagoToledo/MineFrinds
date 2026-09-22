@@ -13,3 +13,13 @@ exemplo deve conter UUID, estado privado do mundo ou segredo. O scorer Java deve
 ser avaliado pelo mesmo JSONL sem chamar um modelo remoto; métricas mínimas são
 macro-F1 por idioma, precisão das decisões aceitas, cobertura, taxa de
 abstenção, matriz de confusão, latência e memória.
+
+Para gerar uma base sintética reproduzível antes da revisão humana, use:
+
+```text
+python tools/generate-decision-corpus.py --count 600 --output decision-corpus.generated.jsonl
+```
+
+O gerador grava divisão determinística em `train`, `calibration` e `test`. O
+arquivo gerado não deve ser versionado como evidência final sem revisão das
+paráfrases e inclusão de casos de negação, modpacks e ordens incompletas.
