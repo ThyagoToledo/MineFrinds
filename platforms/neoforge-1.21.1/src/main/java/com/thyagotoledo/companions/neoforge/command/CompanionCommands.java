@@ -3,6 +3,7 @@ package com.thyagotoledo.companions.neoforge.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.thyagotoledo.companions.core.dialogue.DialogueResponse;
 import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.neoforge.client.skin.SkinCacheManager;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
@@ -671,13 +672,16 @@ public class CompanionCommands {
         if (!rawText.trim().isEmpty()) {
             NeoForgeCompanionEntity dataEntity = companion.getDataEntity();
             if (dataEntity != null && dataEntity.getDialogueProvider() != null) {
+                long requestRevision = CompanionManager.getRevision(player.getUUID());
                 dataEntity.handleCommandAsync(rawText, player.clientInformation().language())
                         .thenAccept(response -> {
                             if (response != null && response.getSpeech() != null && player.getServer() != null) {
                                 player.getServer().execute(() -> {
                                     if (player.isAlive() && companion.isAlive()
                                             && player.level() == companion.level()
-                                            && CompanionManager.getPlayerCompanion(player.getUUID()) == companion) {
+                                            && CompanionManager.getPlayerCompanion(player.getUUID()) == companion
+                                            && CompanionManager.getRevision(player.getUUID()) == requestRevision) {
+                                        applyDialogueIntent(player, companion, response);
                                         companion.speakToOwner(response.getSpeech());
                                     }
                                 });
@@ -688,6 +692,45 @@ public class CompanionCommands {
         }
 
         return false;
+    }
+
+    /** Aplica somente intents aceitas pelo adapter local; o texto nunca vira código executável. */
+    private static void applyDialogueIntent(ServerPlayer player, CompanionServerPlayer companion,
+                                            DialogueResponse response) {
+        if (response == null || response.getIntent() == null) return;
+        switch (response.getIntent().getType()) {
+            case FOLLOW_OWNER:
+                companion.setMode(CompanionMode.FOLLOW);
+                break;
+            case STAY:
+                companion.setMode(CompanionMode.STAY);
+                break;
+            case DEFEND:
+                companion.setMode(CompanionMode.DEFEND);
+                break;
+            case CHOP_WOOD:
+                companion.setMode(CompanionMode.WOOD);
+                break;
+            case MINE_BLOCK:
+                executeMineCommand(player.createCommandSourceStack(), response.getIntent().getTarget() == null
+                        ? "all" : response.getIntent().getTarget());
+                break;
+            case RECALL:
+                companion.recallToOwner();
+                break;
+            case DEPOSIT_CHEST:
+                companion.depositToNearbyChest();
+                break;
+            case OPEN_INVENTORY:
+                companion.openCompanionInventory(player);
+                break;
+            case REMOTE_VIEW:
+                executeView(player.createCommandSourceStack());
+                break;
+            default:
+                // Conversa, status e intents sem executor não alteram o mundo.
+                break;
+        }
     }
 
     public static void sendHelpMessage(CommandSourceStack source) {
