@@ -5,6 +5,7 @@ import com.thyagotoledo.companions.core.model.CompanionMode;
 import com.thyagotoledo.companions.core.planner.ActionResult;
 import com.thyagotoledo.companions.core.planner.TaskPlan;
 import com.thyagotoledo.companions.core.planner.TaskStep;
+import com.thyagotoledo.companions.core.planner.TaskStatus;
 import com.thyagotoledo.companions.neoforge.service.EquipmentPolicy;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
@@ -592,6 +593,27 @@ public class CompanionServerPlayer extends ServerPlayer {
     /** Plano curto mantido no servidor; respostas externas nunca alteram o mundo diretamente. */
     public TaskPlan getActiveTaskPlan() { return activeTaskPlan; }
 
+    private void ensureWorkPlan(String actionId) {
+        if (actionId == null || actionId.isEmpty()) return;
+        TaskStep current = activeTaskPlan != null ? activeTaskPlan.current() : null;
+        if (current == null || !actionId.equals(current.getActionId())
+                || (activeTaskPlan != null && activeTaskPlan.getRevision() != CompanionManager.getRevision(ownerUuid))) {
+            activeTaskPlan = new TaskPlan(CompanionManager.getRevision(ownerUuid),
+                    java.util.Collections.singletonList(new TaskStep(actionId, 8)));
+            activeTaskPlan.startCurrent();
+        } else if (current.getStatus() != TaskStatus.RUNNING) {
+            activeTaskPlan.startCurrent();
+        }
+    }
+
+    private void applyWorkResult(String actionId, ActionResult result) {
+        ensureWorkPlan(actionId);
+        if (activeTaskPlan != null && activeTaskPlan.current() != null
+                && activeTaskPlan.current().getStatus() == TaskStatus.RUNNING) {
+            activeTaskPlan.applyCurrent(result);
+        }
+    }
+
     private void beginCraftPlan() {
         activeTaskPlan = new TaskPlan(CompanionManager.getRevision(ownerUuid),
                 java.util.Collections.singletonList(new TaskStep("craft", 16)));
@@ -854,6 +876,7 @@ public class CompanionServerPlayer extends ServerPlayer {
      * Quebra folhas obstrutoras de visada e derruba a arvore inteira de baixo para cima com drops naturais.
      */
     private void handleWoodMode(ServerPlayer owner) {
+        ensureWorkPlan("gather_wood");
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
             if (this.tickCount < nextWorkScanTick) return;
             nextWorkScanTick = this.tickCount + 20L;
@@ -912,6 +935,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                 // Valida protecao do bloco base
                 if (!canUsePlayerBreak(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para quebrar madeira nesta area protegida!");
+                    applyWorkResult("gather_wood", ActionResult.failed(ActionResult.Code.PROTECTED, "protected_area"));
                     targetWorkPos = null;
                     workBreakTicks = 0;
                     return;
@@ -945,6 +969,7 @@ public class CompanionServerPlayer extends ServerPlayer {
 
                 // Remove as folhas ao redor da copa da arvore derrubada com drops naturais (TreeCapitator / Timber)
                 clearTreeLeaves(targetWorkPos, maxY);
+                applyWorkResult("gather_wood", ActionResult.succeeded(harvestedCount, "tree_drops_requested"));
 
                 targetWorkPos = null;
                 workBreakTicks = 0;
@@ -981,6 +1006,7 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void handleMineMode(ServerPlayer owner) {
+        ensureWorkPlan("mine_block");
         if (miningDirection == null) miningDirection = Direction.fromYRot(getYRot());
 
         // 1. Vein Mining: se acabou de minerar um minerio, prioriza minerar blocos contiguos do mesmo veio
@@ -1110,6 +1136,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             if (miningProgress >= 1.0f) {
                 if (!canUsePlayerBreak(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para minerar nesta area protegida!");
+                    applyWorkResult("mine_block", ActionResult.failed(ActionResult.Code.PROTECTED, "protected_area"));
                     targetWorkPos = null;
                     workBreakTicks = 0;
                     return;
@@ -1121,6 +1148,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (this.gameMode.destroyBlock(targetWorkPos)) {
                     requestDropCollection(brokenPos);
                     harvestedCount++;
+                    applyWorkResult("mine_block", ActionResult.succeeded(1, wasOre ? "ore_drop_requested" : "stone_drop_requested"));
 
                     if (wasOre) {
                         mineVeinCascade(brokenPos, miningState);
@@ -2412,6 +2440,7 @@ public class CompanionServerPlayer extends ServerPlayer {
 
     public void setMode(CompanionMode mode) {
         if (mode != null) {
+            if (activeTaskPlan != null && !activeTaskPlan.isComplete()) activeTaskPlan.cancel();
             this.mode = mode;
             this.autonomous = mode == CompanionMode.WORK;
             if (mode == CompanionMode.STAY) this.pendingCraftItem = null;

@@ -9,9 +9,11 @@ import com.thyagotoledo.companions.core.model.InventorySnapshot;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 public class HybridDialogueProvider {
     private final DeterministicDialogueProvider deterministicProvider;
+    private final IntentDecisionProvider intentDecisionProvider;
     private final InferenceClient inferenceClient;
     private final ConversationMemory memory;
     private final LocaleService localeService;
@@ -20,10 +22,19 @@ public class HybridDialogueProvider {
                                   InferenceClient inferenceClient,
                                   ConversationMemory memory,
                                   LocaleService localeService) {
+        this(deterministicProvider, inferenceClient, memory, localeService, null);
+    }
+
+    public HybridDialogueProvider(DeterministicDialogueProvider deterministicProvider,
+                                  InferenceClient inferenceClient,
+                                  ConversationMemory memory,
+                                  LocaleService localeService,
+                                  IntentDecisionProvider intentDecisionProvider) {
         this.localeService = localeService != null ? localeService : new LocaleService();
         this.deterministicProvider = deterministicProvider != null ? deterministicProvider : new DeterministicDialogueProvider(this.localeService);
         this.inferenceClient = inferenceClient;
         this.memory = memory != null ? memory : new ConversationMemory(6);
+        this.intentDecisionProvider = intentDecisionProvider != null ? intentDecisionProvider : new IntentDecisionProvider();
     }
 
     public CompletableFuture<DialogueResponse> processAsync(String input, String preferredLocale,
@@ -41,28 +52,17 @@ public class HybridDialogueProvider {
             return CompletableFuture.completedFuture(deterministicResp);
         }
 
-        // 2. Se a inferencia generativa nao estiver configurada ou disponivel, retorna deterministico
-        if (inferenceClient == null || !inferenceClient.isAvailable() || inferenceClient.getPendingQueueSize() >= 8) {
-            memory.addEntry("user", input);
-            DialogueResponse unavailable = unavailable(locale, deterministicResp);
-            memory.addEntry("companion", unavailable.getSpeech());
-            return CompletableFuture.completedFuture(unavailable);
-        }
-
-        // 3. Montar prompt do sistema com personalidade e memoria curta
-        String systemPrompt = buildSystemPrompt(locale, profile, inventory);
         memory.addEntry("user", input);
-
-        return inferenceClient.completeAsync(input, systemPrompt)
-                .thenApply(rawJson -> {
-                    DialogueResponse parsed = parseModelOutput(rawJson, locale, deterministicResp);
-                    memory.addEntry("companion", parsed.getSpeech());
-                    return parsed;
-                })
-                .exceptionally(ex -> {
-                    // Fallback gracioso em caso de erro, timeout ou desconexao
-                    return unavailable(locale, deterministicResp);
-                });
+        UUID companionId = profile != null ? profile.getId() : null;
+        return intentDecisionProvider.decide(input, locale, companionId).thenCompose(localIntent -> {
+            if (localIntent != null && localIntent.getType() != IntentType.CASUAL_CHAT
+                    && localIntent.getType() != IntentType.UNKNOWN_OR_BLOCKED) {
+                DialogueResponse inferred = localIntentResponse(locale, localIntent);
+                memory.addEntry("companion", inferred.getSpeech());
+                return CompletableFuture.completedFuture(inferred);
+            }
+            return processGenerativeOrFallback(input, locale, profile, inventory, deterministicResp);
+        });
     }
 
     private DialogueResponse unavailable(String locale, DialogueResponse fallback) {
@@ -91,6 +91,50 @@ public class HybridDialogueProvider {
 
     public ConversationMemory getMemory() {
         return memory;
+    }
+
+    public IntentDecisionProvider getIntentDecisionProvider() {
+        return intentDecisionProvider;
+    }
+
+    private CompletableFuture<DialogueResponse> processGenerativeOrFallback(String input, String locale,
+                                                                              CompanionProfile profile,
+                                                                              InventorySnapshot inventory,
+                                                                              DialogueResponse fallback) {
+        if (inferenceClient == null || !inferenceClient.isAvailable() || inferenceClient.getPendingQueueSize() >= 8) {
+            DialogueResponse unavailable = unavailable(locale, fallback);
+            memory.addEntry("companion", unavailable.getSpeech());
+            return CompletableFuture.completedFuture(unavailable);
+        }
+
+        String systemPrompt = buildSystemPrompt(locale, profile, inventory);
+        return inferenceClient.completeAsync(input, systemPrompt)
+                .thenApply(rawJson -> {
+                    DialogueResponse parsed = parseModelOutput(rawJson, locale, fallback);
+                    memory.addEntry("companion", parsed.getSpeech());
+                    return parsed;
+                })
+                .exceptionally(ex -> unavailable(locale, fallback));
+    }
+
+    private DialogueResponse localIntentResponse(String locale, Intent intent) {
+        String key;
+        switch (intent.getType()) {
+            case FOLLOW_OWNER: key = "dialogue.follow_ack"; break;
+            case STAY: key = "dialogue.stay_ack"; break;
+            case DEFEND: key = "dialogue.defend_ack"; break;
+            case RECALL: key = "dialogue.recall_ack"; break;
+            case REMOTE_VIEW: key = "dialogue.remote_view_start"; break;
+            case OPEN_INVENTORY: key = "dialogue.inventory_open"; break;
+            case CHOP_WOOD: key = "dialogue.wood_ack"; break;
+            case DEPOSIT_CHEST: key = "dialogue.deposit_ack"; break;
+            case ASSIST_SELECTED_QUEST: key = "dialogue.quest_ack"; break;
+            case MINE_BLOCK: key = "dialogue.mine_ack"; break;
+            case COLLECT_ITEMS: key = "dialogue.collect_ack"; break;
+            case REPORT_STATUS: key = "dialogue.status_report"; break;
+            default: key = "dialogue.unknown_ack";
+        }
+        return new DialogueResponse(locale, localeService.translate(locale, key), intent);
     }
 
     private String buildSystemPrompt(String locale, CompanionProfile profile, InventorySnapshot inventory) {

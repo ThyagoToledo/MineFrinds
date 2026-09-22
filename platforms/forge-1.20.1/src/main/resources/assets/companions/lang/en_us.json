@@ -24,6 +24,8 @@
   "dialogue.inventory_open": "Here is my inventory.",
   "dialogue.status_report": "Health: {0}/{1}, Mode: {2}.",
   "dialogue.wood_ack": "I am gathering wood in the nearby area.",
+  "dialogue.mine_ack": "I will look for ores carefully.",
+  "dialogue.collect_ack": "I will collect the nearby items.",
   "dialogue.deposit_ack": "I will store the collected items in the chest.",
   "dialogue.quest_ack": "Let me inspect what is needed for our quest.",
   "dialogue.unknown_ack": "I did not quite catch that. Can you repeat?",

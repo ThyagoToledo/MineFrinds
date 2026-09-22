@@ -14,6 +14,21 @@ class DialogueRoutingTests {
         assertEquals(IntentType.UNKNOWN_OR_BLOCKED, provider.process("Can we visit a village?", "en_us", null, null).getIntent().getType());
         assertEquals(IntentType.STAY, provider.process("para", "pt_br", null, null).getIntent().getType());
     }
+
+    @Test void localClosedIntentUnderstandsNaturalBilingualOrder() throws Exception {
+        HybridDialogueProvider provider = new HybridDialogueProvider(null, null,
+                new ConversationMemory(6), null);
+        DialogueResponse response = provider.processAsync("pegue madeira da arvore", "pt_br", null, null).get();
+        assertEquals(IntentType.CHOP_WOOD, response.getIntent().getType());
+        assertTrue(response.getSpeech().contains("madeira"));
+    }
+
+    @Test void localClosedIntentAbstainsBeforeCasualFallback() throws Exception {
+        HybridDialogueProvider provider = new HybridDialogueProvider(null, null,
+                new ConversationMemory(6), null);
+        DialogueResponse response = provider.processAsync("o que fazer para sobreviver?", "pt_br", null, null).get();
+        assertEquals(IntentType.UNKNOWN_OR_BLOCKED, response.getIntent().getType());
+    }
     @Test void modelReceivesMemoryAndRequestedLanguage() throws Exception {
         AtomicReference<String> prompt = new AtomicReference<>();
         InferenceTransport transport = (input, system, timeout) -> {

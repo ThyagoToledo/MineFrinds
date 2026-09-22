@@ -12,6 +12,8 @@
   "dialogue.inventory_open": "Aqui esta minha mochila.",
   "dialogue.status_report": "Vida: {0}/{1}, Modo: {2}.",
   "dialogue.wood_ack": "Vou coletar madeira nos arredores.",
+  "dialogue.mine_ack": "Vou procurar minerios com cuidado.",
+  "dialogue.collect_ack": "Vou recolher os itens proximos.",
   "dialogue.deposit_ack": "Vou guardar os itens coletados no bau.",
   "dialogue.quest_ack": "Deixe-me verificar o que falta para a nossa missao.",
   "dialogue.unknown_ack": "Nao entendi muito bem. Pode repetir?",
