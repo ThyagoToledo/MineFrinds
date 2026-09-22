@@ -1,0 +1,40 @@
+{"id":"pt-follow-01","locale":"pt-BR","family":"direct_order","text":"me segue","label":"FOLLOW_OWNER","expected_abstain":false}
+{"id":"pt-follow-02","locale":"pt-BR","family":"paraphrase","text":"vem comigo até aquela colina","label":"FOLLOW_OWNER","expected_abstain":false}
+{"id":"pt-stay-01","locale":"pt-BR","family":"direct_order","text":"fica aqui","label":"STAY","expected_abstain":false}
+{"id":"pt-stay-02","locale":"pt-BR","family":"paraphrase","text":"espere neste lugar enquanto exploro","label":"STAY","expected_abstain":false}
+{"id":"pt-defend-01","locale":"pt-BR","family":"direct_order","text":"defenda-me","label":"DEFEND","expected_abstain":false}
+{"id":"pt-defend-02","locale":"pt-BR","family":"paraphrase","text":"proteja o acampamento dos monstros","label":"DEFEND","expected_abstain":false}
+{"id":"pt-wood-01","locale":"pt-BR","family":"resource","text":"pegue madeira da árvore","label":"CHOP_WOOD","expected_abstain":false}
+{"id":"pt-wood-02","locale":"pt-BR","family":"resource","text":"corte alguns troncos para a bancada","label":"CHOP_WOOD","expected_abstain":false}
+{"id":"pt-mine-01","locale":"pt-BR","family":"resource","text":"minere ferro com segurança","label":"MINE_BLOCK","expected_abstain":false}
+{"id":"pt-mine-02","locale":"pt-BR","family":"resource","text":"procure diamantes nesta caverna","label":"MINE_BLOCK","expected_abstain":false}
+{"id":"pt-collect-01","locale":"pt-BR","family":"items","text":"recolha os itens que caíram","label":"COLLECT_ITEMS","expected_abstain":false}
+{"id":"pt-deposit-01","locale":"pt-BR","family":"inventory","text":"guarde tudo no baú marcado","label":"DEPOSIT_CHEST","expected_abstain":false}
+{"id":"pt-quest-01","locale":"pt-BR","family":"quest","text":"me ajude com a missão","label":"ASSIST_SELECTED_QUEST","expected_abstain":false}
+{"id":"pt-recall-01","locale":"pt-BR","family":"navigation","text":"venha para perto de mim","label":"RECALL","expected_abstain":false}
+{"id":"pt-view-01","locale":"pt-BR","family":"observation","text":"quero observar pela sua câmera","label":"REMOTE_VIEW","expected_abstain":false}
+{"id":"pt-inventory-01","locale":"pt-BR","family":"inventory","text":"abra sua mochila","label":"OPEN_INVENTORY","expected_abstain":false}
+{"id":"pt-chat-01","locale":"pt-BR","family":"casual","text":"como está o tempo hoje?","label":"CASUAL_CHAT","expected_abstain":true}
+{"id":"pt-chat-02","locale":"pt-BR","family":"casual","text":"qual é o melhor jeito de sobreviver?","label":"CASUAL_CHAT","expected_abstain":true}
+{"id":"pt-ambiguous-01","locale":"pt-BR","family":"ambiguous","text":"faça alguma coisa","label":"UNKNOWN_OR_BLOCKED","expected_abstain":true}
+{"id":"pt-ambiguous-02","locale":"pt-BR","family":"ambiguous","text":"pegue isso","label":"UNKNOWN_OR_BLOCKED","expected_abstain":true}
+{"id":"en-follow-01","locale":"en-US","family":"direct_order","text":"follow me","label":"FOLLOW_OWNER","expected_abstain":false}
+{"id":"en-follow-02","locale":"en-US","family":"paraphrase","text":"walk beside me to the village","label":"FOLLOW_OWNER","expected_abstain":false}
+{"id":"en-stay-01","locale":"en-US","family":"direct_order","text":"stay here","label":"STAY","expected_abstain":false}
+{"id":"en-stay-02","locale":"en-US","family":"paraphrase","text":"wait at this spot","label":"STAY","expected_abstain":false}
+{"id":"en-defend-01","locale":"en-US","family":"direct_order","text":"defend me","label":"DEFEND","expected_abstain":false}
+{"id":"en-defend-02","locale":"en-US","family":"paraphrase","text":"protect our base from hostile mobs","label":"DEFEND","expected_abstain":false}
+{"id":"en-wood-01","locale":"en-US","family":"resource","text":"gather wood from that tree","label":"CHOP_WOOD","expected_abstain":false}
+{"id":"en-wood-02","locale":"en-US","family":"resource","text":"cut logs for crafting","label":"CHOP_WOOD","expected_abstain":false}
+{"id":"en-mine-01","locale":"en-US","family":"resource","text":"mine some iron safely","label":"MINE_BLOCK","expected_abstain":false}
+{"id":"en-mine-02","locale":"en-US","family":"resource","text":"look for diamonds in this cave","label":"MINE_BLOCK","expected_abstain":false}
+{"id":"en-collect-01","locale":"en-US","family":"items","text":"pick up the dropped items","label":"COLLECT_ITEMS","expected_abstain":false}
+{"id":"en-deposit-01","locale":"en-US","family":"inventory","text":"store everything in the marked chest","label":"DEPOSIT_CHEST","expected_abstain":false}
+{"id":"en-quest-01","locale":"en-US","family":"quest","text":"help me with the quest","label":"ASSIST_SELECTED_QUEST","expected_abstain":false}
+{"id":"en-recall-01","locale":"en-US","family":"navigation","text":"come closer to me","label":"RECALL","expected_abstain":false}
+{"id":"en-view-01","locale":"en-US","family":"observation","text":"let me see through your camera","label":"REMOTE_VIEW","expected_abstain":false}
+{"id":"en-inventory-01","locale":"en-US","family":"inventory","text":"open your inventory","label":"OPEN_INVENTORY","expected_abstain":false}
+{"id":"en-chat-01","locale":"en-US","family":"casual","text":"what should we build today?","label":"CASUAL_CHAT","expected_abstain":true}
+{"id":"en-chat-02","locale":"en-US","family":"casual","text":"tell me a story about this world","label":"CASUAL_CHAT","expected_abstain":true}
+{"id":"en-ambiguous-01","locale":"en-US","family":"ambiguous","text":"do something","label":"UNKNOWN_OR_BLOCKED","expected_abstain":true}
+{"id":"en-ambiguous-02","locale":"en-US","family":"ambiguous","text":"get that","label":"UNKNOWN_OR_BLOCKED","expected_abstain":true}

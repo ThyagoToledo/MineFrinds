@@ -10,7 +10,7 @@
   <a href="https://files.minecraftforge.net/"><img src="https://img.shields.io/badge/Forge-1.20.1%20%7C%201.12.2-DFAD32?style=for-the-badge&logo=curseforge&logoColor=black" alt="Minecraft Forge" /></a>
   <a href="https://neoforged.net/"><img src="https://img.shields.io/badge/NeoForge-1.21.1-EA6C24?style=for-the-badge&logo=neoforge&logoColor=white" alt="NeoForge" /></a>
   <a href="https://gradle.org/"><img src="https://img.shields.io/badge/Gradle-8.8-02303A?style=for-the-badge&logo=gradle&logoColor=white" alt="Gradle" /></a>
-  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Tests-84%2F84%20Passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
+  <a href="https://junit.org/"><img src="https://img.shields.io/badge/Core%20tests-50%20passing-2ea44f?style=for-the-badge&logo=junit5&logoColor=white" alt="Tests" /></a>
 </p>
 
 ---
@@ -19,7 +19,7 @@
 
 O **MineFriends** e um mod para Minecraft Java focado em adicionar companheiros artificiais verdadeiramente uteis para a sua jornada. Desenvolvido com engenharia limpa e foco em estabilidade, o projeto preenche a lacuna de solidao no modo um jogador e adiciona aliados eficientes para servidores cooperativos e modpacks pesados.
 
-Ao contrario de bots convencionais que sobrecarregam o servidor ou quebram a imersao com acoes caoticas, o MineFriends adota uma arquitetura em camadas: as tomadas de decisao essenciais, o combate e o inventario sao processados de forma nativa e estavel na engine do jogo, enquanto a cognicao dialogica e adaptada de forma hibrida e leve para modelos pequenos (SLMs locais), garantindo respostas com 100% de precisao sem travar os 20 TPS do mundo.
+Ao contrario de bots convencionais que sobrecarregam o servidor ou quebram a imersao com acoes caoticas, o MineFriends adota uma arquitetura em camadas: as tomadas de decisao essenciais, o combate e o inventario sao processados de forma nativa e estavel na engine do jogo, enquanto a cognicao dialogica e adaptada de forma hibrida e leve para modelos pequenos (SLMs locais). Decisoes ambiguas podem se abster e nunca alteram o mundo sem validacao do servidor.
 
 ---
 
@@ -52,7 +52,7 @@ MineFrinds/
 |   |   |-- permissions/                # Contratos agnosticos de verificacao de claims
 |   |   |-- planner/                    # Catalogo de receitas e arvore de crafting
 |   |   `-- quest/                      # Modelagem e planejador de missoes FTB Quests
-|   `-- src/test/java/                  # 19 testes unitarios e QualificationHarness
+|   `-- src/test/java/                  # testes unitarios do contrato e providers locais
 |-- platforms/
 |   |-- forge-1.20.1/                   # Plataforma Forge 1.20.1 (Java 17)
 |   |-- neoforge-1.21.1/                # Plataforma NeoForge 1.21.1 (Java 21 / Tensura Neo Otherworld)
@@ -85,16 +85,16 @@ git clone https://github.com/ThyagoToledo/MineFrinds.git
 cd MineFrinds
 ```
 
-### 2. Executar Todas as Suites de Teste (49 testes)
+### 2. Executar as Suites de Teste
 ```bash
-# Testes do modulo universal core (19 testes)
+# Testes do modulo universal core (50 testes no estado atual)
 cd platforms/forge-1.20.1
 ./gradlew :minecraft-companheiros:core:test
 
 # Testes da plataforma Forge 1.20.1 (15 testes)
 ./gradlew test
 
-# Testes da plataforma NeoForge 1.21.1 e Tensura Neo Otherworld (10 testes)
+# Testes da plataforma NeoForge 1.21.1 e Tensura Neo Otherworld (34 testes)
 cd ../neoforge-1.21.1
 ./gradlew test
 
