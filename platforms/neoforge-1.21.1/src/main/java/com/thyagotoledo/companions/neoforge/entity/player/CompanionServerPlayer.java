@@ -752,6 +752,9 @@ public class CompanionServerPlayer extends ServerPlayer {
         if (combatTarget != null && (!combatTarget.isAlive() || combatTarget.level() != level()
                 || (combatTarget.distanceToSqr(owner) > 324 && combatTarget.distanceToSqr(this) > 324)
                 || combatTarget.isAlliedTo(owner) || combatTarget.isAlliedTo(this))) {
+            if (!combatTarget.isAlive()) {
+                applyWorkResult("defend", ActionResult.succeeded(1, "hostile_defeated"));
+            }
             if (isUsingItem() && getMainHandItem().getItem() instanceof BowItem) {
                 stopUsingItem();
             }
@@ -798,6 +801,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
             return false;
         }
+
+        ensureWorkPlan("defend");
 
         double distSq = distanceToSqr(combatTarget);
         int bowSlot = findBowInInventory();
@@ -1676,6 +1681,7 @@ public class CompanionServerPlayer extends ServerPlayer {
      * Modo Agricultura (FARM): colhe safras maduras e replanta sementes em blocos de terra arada.
      */
     private void handleFarmMode(ServerPlayer owner) {
+        ensureWorkPlan("farm_crop");
         if (targetWorkPos == null) {
             if (this.tickCount < nextWorkScanTick) return;
             nextWorkScanTick = this.tickCount + 20L;
@@ -1710,12 +1716,14 @@ public class CompanionServerPlayer extends ServerPlayer {
                 if (workBreakTicks >= 12) {
                     if (!checkCanBreakBlock(targetWorkPos)) {
                         speakToOwner("Nao tenho permissao para colher safras nesta area protegida!");
+                        applyWorkResult("farm_crop", ActionResult.failed(ActionResult.Code.PROTECTED, "protected_area"));
                         targetWorkPos = null;
                         workBreakTicks = 0;
                         return;
                     }
                     this.level().destroyBlock(targetWorkPos, true, this);
                     requestDropCollection(targetWorkPos);
+                    applyWorkResult("farm_crop", ActionResult.succeeded(1, "crop_drop_requested"));
                     targetWorkPos = null;
                     workBreakTicks = 0;
                 }
@@ -1725,6 +1733,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                 BlockPos plantPos = targetWorkPos.above();
                 if (!checkCanInteractBlock(plantPos)) {
                     speakToOwner("Nao tenho permissao para plantar sementes nesta area protegida!");
+                    applyWorkResult("farm_crop", ActionResult.failed(ActionResult.Code.PROTECTED, "protected_area"));
                     targetWorkPos = null;
                     workBreakTicks = 0;
                     return;
@@ -1735,6 +1744,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     if (cropState != null) {
                         this.level().setBlockAndUpdate(plantPos, cropState);
                         seedStack.shrink(1);
+                        applyWorkResult("farm_crop", ActionResult.succeeded(1, "seed_planted"));
                         this.swing(InteractionHand.MAIN_HAND, true);
                         this.level().playSound(null, plantPos.getX(), plantPos.getY(), plantPos.getZ(),
                                 SoundEvents.CROP_PLANTED, SoundSource.BLOCKS, 1.0f, 1.0f);
@@ -1747,6 +1757,7 @@ public class CompanionServerPlayer extends ServerPlayer {
             else if (this.farmTillEnabled && isTillableDirt(state) && this.level().getBlockState(targetWorkPos.above()).isAir()) {
                 if (!checkCanInteractBlock(targetWorkPos)) {
                     speakToOwner("Nao tenho permissao para arar a terra nesta area protegida!");
+                    applyWorkResult("farm_crop", ActionResult.failed(ActionResult.Code.PROTECTED, "protected_area"));
                     targetWorkPos = null;
                     workBreakTicks = 0;
                     return;
@@ -1756,6 +1767,7 @@ public class CompanionServerPlayer extends ServerPlayer {
                     equipBestHoe();
                     this.swing(InteractionHand.MAIN_HAND, true);
                     this.level().setBlockAndUpdate(targetWorkPos, Blocks.FARMLAND.defaultBlockState());
+                    applyWorkResult("farm_crop", ActionResult.succeeded(1, "soil_tilled"));
                     this.level().playSound(null, targetWorkPos.getX(), targetWorkPos.getY(), targetWorkPos.getZ(),
                             SoundEvents.HOE_TILL, SoundSource.BLOCKS, 1.0f, 1.0f);
                     hoe.hurtAndBreak(1, serverLevel(), this, item -> {});
