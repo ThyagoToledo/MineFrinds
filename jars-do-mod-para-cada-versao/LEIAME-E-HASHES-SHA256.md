@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 compilado em 2026-09-21 | 300.075 bytes | `D1AF8103CB0F72BF08FDEC2B547FB89C8A5E00F422D9B9393EBFD458F891AB45` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 compilado em 2026-09-21 | 300.118 bytes | `115C9857B04E77ECE0FBF6854B506B41F981AC5053E817B60148D4130D36AEBA` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 com watchdog, scanner incremental, recuperacao e veios limitados, compilado em 2026-09-22 | 307.621 bytes | `CA3463BC77D2DD49E8795DC7D92185269150577FF377463CDB222F9CEBED0B40` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com watchdog, scanner incremental, recuperacao e veios limitados, compilado em 2026-09-22 | 307.664 bytes | `E8DD0D821BE24DF792B4B7D322AF922206A2DB346EB0EB3128CA4DD6DB58042B` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0 | 1.20.1 | Padrao / `reobfJar` compilado em 2026-09-21 | 172.929 bytes | `3518CC71DCE01E547663BFBC44CD0FC5249F913EDD16616BDFE005E4244BE5BC` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / compilado em 2026-09-21 | 14.235 bytes | `E8FA84D3E86E825EE6D80698AAFE57BE88DF50296A5D05C37BD5347831D74A4B` |
 
@@ -125,15 +125,17 @@ O mod disponibiliza 3 formas para abrir o painel de controle do companheiro dent
 
 ## Release candidate 0.2.0-alpha.2
 
-Os quatro artefatos acima foram gerados a partir do commit `cd82599` e copiados para as pastas de release candidate correspondentes. O JAR NeoForge padrao foi instalado na instancia de teste abaixo.
+Os artefatos foram copiados para as pastas de release candidate correspondentes. O JAR NeoForge padrao foi instalado na instancia de teste abaixo.
 
 ### Instancia de teste atualizada
 
 - Instancia: `C:\Users\thyag\curseforge\minecraft\Instances\TesteMineFrinds`
 - Loader: NeoForge 21.1.251 / Minecraft 1.21.1
 - JAR instalado: `mods/companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar`
-- Backup do JAR anterior: `backups/minefriends-20260921-2215/`
-- Hash SHA-256 instalado: `D1AF8103CB0F72BF08FDEC2B547FB89C8A5E00F422D9B9393EBFD458F891AB45`
+- Backup do JAR anterior: `backups/minefriends-mining-m20260922-215133/`
+- Hash SHA-256 instalado: `CA3463BC77D2DD49E8795DC7D92185269150577FF377463CDB222F9CEBED0B40`
+- Hash SHA-256 do complemento Tensura instalado: `E8DD0D821BE24DF792B4B7D322AF922206A2DB346EB0EB3128CA4DD6DB58042B`
+- Diagnóstico: `/companion debug mining` exibe alvo, objetivo, scanner incremental, fila de veio e watchdog.
 
 O JAR anterior foi movido para o backup antes da substituicao. Nenhum JAR de outro loader foi colocado nessa instancia.
 

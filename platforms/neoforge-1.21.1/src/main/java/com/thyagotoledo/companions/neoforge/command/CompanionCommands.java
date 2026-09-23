@@ -68,6 +68,9 @@ public class CompanionCommands {
                             ctx.getSource().sendSuccess(() -> Component.literal(CompanionManager.inferenceStatus()), false);
                             return 1;
                         }))
+                        .then(Commands.literal("debug")
+                                .then(Commands.literal("mining").executes(ctx -> executeMiningDebug(ctx.getSource())))
+                        )
                         .then(Commands.literal("help")
                                 .executes(ctx -> {
                                     sendHelpMessage(ctx.getSource());
@@ -694,6 +697,21 @@ public class CompanionCommands {
         return false;
     }
 
+    private static int executeMiningDebug(CommandSourceStack source) {
+        ServerPlayer player = source.getPlayer();
+        if (player == null) {
+            source.sendFailure(Component.literal("Este comando so pode ser executado por um jogador."));
+            return 0;
+        }
+        CompanionServerPlayer companion = CompanionManager.getPlayerCompanion(player.getUUID());
+        if (companion == null) {
+            source.sendFailure(Component.literal("Voce nao possui um companheiro ativo."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("[MineFriends] " + companion.getMiningDebugSummary()), false);
+        return 1;
+    }
+
     /** Aplica somente intents aceitas pelo adapter local; o texto nunca vira código executável. */
     private static void applyDialogueIntent(ServerPlayer player, CompanionServerPlayer companion,
                                             DialogueResponse response) {
@@ -752,6 +770,7 @@ public class CompanionCommands {
         source.sendSuccess(() -> createClickableCommand("/companion deposit", "Guarda itens coletados no bau designado ou proximo", "/companion deposit"), false);
         source.sendSuccess(() -> createClickableCommand("/companion view", "Alterna visao remota da camera do companheiro", "/companion view"), false);
         source.sendSuccess(() -> createClickableCommand("/companion recall", "Chama o companheiro para perto de voce", "/companion recall"), false);
+        source.sendSuccess(() -> createClickableCommand("/companion debug mining", "Mostra alvo, scanner, veio e watchdog da mineracao", "/companion debug mining"), false);
         source.sendSuccess(() -> createClickableCommand("/companion dismiss", "Dispensa o companheiro do servidor", "/companion dismiss"), false);
         source.sendSuccess(() -> createClickableCommand("/skin <nome>", "Altera a skin em tempo real (ex: Rimuru, Goku, Luffy)", "/skin "), false);
         source.sendSuccess(() -> createClickableCommand("/skin reset", "Restaura para a sua propria skin", "/skin reset"), false);

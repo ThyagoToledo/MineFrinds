@@ -10,6 +10,8 @@ import com.thyagotoledo.companions.neoforge.service.EquipmentPolicy;
 import com.thyagotoledo.companions.neoforge.entity.CompanionManager;
 import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
+import com.thyagotoledo.companions.neoforge.service.MiningController;
+import com.thyagotoledo.companions.neoforge.service.MiningProgressWatchdog;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
@@ -71,6 +73,18 @@ import java.util.UUID;
  */
 public class CompanionServerPlayer extends ServerPlayer {
 
+    private static final double DROP_COLLECTION_HORIZONTAL_RADIUS = 4.0;
+    private static final double DROP_COLLECTION_VERTICAL_RADIUS = 3.0;
+    private static final long DROP_COLLECTION_WINDOW_TICKS = 300L;
+    private static final int ORE_SCAN_HORIZONTAL_RADIUS = 20;
+    private static final int ORE_SCAN_DOWN = 36;
+    private static final int ORE_SCAN_UP = 12;
+    private static final long ORE_SCAN_COOLDOWN_TICKS = 40L;
+    private static final int ORE_SCAN_BLOCKS_PER_TICK = 2048;
+    private static final int MINING_COLLISION_RECOVERY_TICKS = 6;
+    private static final int VEIN_BLOCKS_PER_TICK = 4;
+    private static final int MAX_VEIN_BLOCKS = 48;
+
     private final UUID ownerUuid;
     private final NeoForgeCompanionEntity dataEntity;
     private NeoForgePermissionService permissionService;
@@ -107,6 +121,19 @@ public class CompanionServerPlayer extends ServerPlayer {
     private int stalledWorkTicks;
     private int consecutiveStalls = 0;
     private int mineStuckTicks = 0;
+    private long nextOreScanTick = 0L;
+    private boolean oreScanActive;
+    private BlockPos oreScanOrigin;
+    private int oreScanX;
+    private int oreScanY;
+    private int oreScanZ;
+    private BlockPos oreScanBest;
+    private double oreScanBestScore = -Double.MAX_VALUE;
+    private java.util.ArrayDeque<BlockPos> pendingVein = new java.util.ArrayDeque<>();
+    private java.util.HashSet<BlockPos> pendingVeinVisited = new java.util.HashSet<>();
+    private BlockState pendingVeinState;
+    private int pendingVeinMined;
+    private final MiningController miningController = new MiningController();
     private java.util.List<BlockPos> localPath = java.util.Collections.emptyList();
     private long nextPathTick;
     private Vec3 lastPathTarget;
@@ -306,22 +333,13 @@ public class CompanionServerPlayer extends ServerPlayer {
                 }
                 return;
             }
-            if (targetWorkPos != null && targetWorkPos.equals(observedWorkTarget)
-                    && lastWorkPosition != null && position().distanceToSqr(lastWorkPosition) < 0.01 && workBreakTicks == 0) {
-                if (++stalledWorkTicks >= 80) {
-                    targetWorkPos = null;
-                    stalledWorkTicks = 0;
-                    nextWorkScanTick = this.tickCount + 15;
-                    consecutiveStalls = 0;
-                }
-            } else {
-                stalledWorkTicks = 0;
-                if (targetWorkPos == null || !targetWorkPos.equals(observedWorkTarget)) {
-                    consecutiveStalls = 0;
+            if (this.mode == CompanionMode.MINE) {
+                MiningProgressWatchdog.Observation observation = miningController.observe(
+                        this.tickCount, targetWorkPos, position(), miningProgress, workBreakTicks > 0);
+                if (observation.state() == MiningProgressWatchdog.State.STUCK) {
+                    recoverMiningFromWatchdog();
                 }
             }
-            observedWorkTarget = targetWorkPos;
-            lastWorkPosition = position();
         }
 
         // 2. Coleta automatica de drops do chao ao redor (raio de 3 blocos) e
@@ -463,13 +481,18 @@ public class CompanionServerPlayer extends ServerPlayer {
     /** Mantem a coleta ativa por alguns segundos depois de uma quebra. */
     private void requestDropCollection(BlockPos center) {
         if (center == null) return;
-        AABB area = new AABB(center).inflate(3.0, 2.0, 3.0);
+        AABB area = new AABB(center).inflate(
+                DROP_COLLECTION_HORIZONTAL_RADIUS,
+                DROP_COLLECTION_VERTICAL_RADIUS,
+                DROP_COLLECTION_HORIZONTAL_RADIUS);
         if (pendingDropCollectionBox == null || pendingDropCollectionBox.getCenter().distanceToSqr(area.getCenter()) > 1024) {
             pendingDropCollectionBox = area;
         } else {
             pendingDropCollectionBox = union(pendingDropCollectionBox, area);
         }
-        pendingDropCollectionUntilTick = Math.max(pendingDropCollectionUntilTick, this.tickCount + 100L);
+        pendingDropCollectionUntilTick = Math.max(
+                pendingDropCollectionUntilTick,
+                this.tickCount + DROP_COLLECTION_WINDOW_TICKS);
     }
 
     private void collectPendingDrops() {
@@ -486,21 +509,7 @@ public class CompanionServerPlayer extends ServerPlayer {
         List<ItemEntity> items = this.level().getEntitiesOfClass(ItemEntity.class, collectionBox);
         for (ItemEntity itemEntity : items) {
             if (itemEntity.isAlive() && !itemEntity.hasPickUpDelay()) {
-                ItemStack stack = itemEntity.getItem();
-                if (!stack.isEmpty()) {
-                    int originalCount = stack.getCount();
-                    // Inventory.add pode mover apenas parte da pilha quando
-                    // o inventario esta quase cheio. Sempre contabilize o
-                    // delta, mesmo quando o metodo retorna false.
-                    this.getInventory().add(stack);
-                    int moved = originalCount - stack.getCount();
-                    if (moved > 0) {
-                        this.take(itemEntity, moved);
-                    }
-                    if (stack.isEmpty()) {
-                        itemEntity.discard();
-                    }
-                }
+                itemEntity.playerTouch(this);
             }
         }
     }
@@ -573,7 +582,6 @@ public class CompanionServerPlayer extends ServerPlayer {
         Vec3 end = target.getCenter();
         double distSq = this.getEyePosition().distanceToSqr(end);
         if (distSq > 20.25) return false;
-        if (distSq <= 9.0) return true;
         BlockState state = this.level().getBlockState(target);
         if (state.getCollisionShape(this.level(), target).isEmpty()) {
             return true;
@@ -680,6 +688,10 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private void moveToward(Vec3 target, double speed) {
+        moveToward(target, speed, true);
+    }
+
+    private void moveToward(Vec3 target, double speed, boolean jumpOnHorizontalCollision) {
         Vec3 diff = target.subtract(this.position());
         double horizDistSq = diff.x * diff.x + diff.z * diff.z;
 
@@ -726,7 +738,8 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         boolean shouldJump = (this.onGround() || this.isInWater())
                 && !headObstructed
-                && ((step.y > 0.45) || (this.horizontalCollision && oneBlockClimbable));
+                && ((step.y > 0.45)
+                || (jumpOnHorizontalCollision && this.horizontalCollision && oneBlockClimbable));
 
         double vertical = shouldJump ? 0.42 : this.getDeltaMovement().y;
         if (this.isInWater() && (target.y > this.getY() || shouldJump)) {
@@ -1014,6 +1027,10 @@ public class CompanionServerPlayer extends ServerPlayer {
         ensureWorkPlan("mine_block");
         if (miningDirection == null) miningDirection = Direction.fromYRot(getYRot());
 
+        // O veio é processado em pequenos passos para não congelar o tick do
+        // servidor nem criar drops antes de o jogador falso conseguir coletá-los.
+        if (processPendingVein()) return;
+
         // 1. Vein Mining: se acabou de minerar um minerio, prioriza minerar blocos contiguos do mesmo veio
         if (targetVeinPos != null) {
             BlockPos adjacent = findAdjacentOre(targetVeinPos);
@@ -1026,41 +1043,57 @@ public class CompanionServerPlayer extends ServerPlayer {
 
         // 2. Se nao temos alvo de mineracao ativo ou o alvo virou ar
         if (targetWorkPos == null || this.level().getBlockState(targetWorkPos).isAir()) {
-            if (this.tickCount < nextWorkScanTick) return;
-            nextWorkScanTick = this.tickCount + 10L;
+            // Enquanto existe um minério escolhido, o planejador continua
+            // avançando a cada tick. Antes o cooldown de varredura interrompia
+            // esse avanço e deixava o NPC parado diante de um desnível.
+            if (miningObjectivePos != null && !this.level().getBlockState(miningObjectivePos).isAir()
+                    && isTargetOre(this.level().getBlockState(miningObjectivePos))) {
+                targetWorkPos = planExcavationStep(miningObjectivePos);
+                if (targetWorkPos == null) {
+                    nextWorkScanTick = this.tickCount + 1L;
+                    return;
+                }
+            } else {
+                if (this.tickCount < nextWorkScanTick) return;
+                nextWorkScanTick = this.tickCount + 10L;
 
-            // Modo Caverna: se estiver em caverna aberta, procura minerios expostos na parede/chao/teto
-            if (isInCave()) {
-                BlockPos exposed = findExposedOreInCave();
-                if (exposed != null) {
-                    miningObjectivePos = exposed;
-                    if (canReachWork(exposed)) {
-                        targetWorkPos = exposed;
-                    } else {
-                        targetWorkPos = planExcavationStep(exposed);
+                // Modo Caverna: primeiro procura minério exposto. A
+                // exploração só acontece depois da busca incremental oculta.
+                if (isInCave()) {
+                    BlockPos exposed = findExposedOreInCave();
+                    if (exposed != null) {
+                        miningObjectivePos = exposed;
+                        if (canReachWork(exposed)) {
+                            targetWorkPos = exposed;
+                        } else {
+                            targetWorkPos = planExcavationStep(exposed);
+                        }
                     }
-                } else {
-                    BlockPos explorePos = findCaveExplorationTarget();
-                    if (explorePos != null) {
-                        moveToward(Vec3.atBottomCenterOf(explorePos), 0.22);
-                        nextWorkScanTick = this.tickCount + 20L;
+                }
+
+                // Se não encontrou exposto, continua/começa o scanner oculto.
+                if (targetWorkPos == null) {
+                    if (miningObjectivePos == null || this.level().getBlockState(miningObjectivePos).isAir()
+                            || !isTargetOre(this.level().getBlockState(miningObjectivePos))) {
+                        miningObjectivePos = findSubterraneanOreTarget();
+                    }
+
+                    if (oreScanActive) {
                         return;
                     }
-                }
-            }
 
-            // Se nao encontrou em caverna, escaneia subsolo por veios do filtro selecionado
-            if (targetWorkPos == null) {
-                if (miningObjectivePos == null || this.level().getBlockState(miningObjectivePos).isAir()
-                        || !isTargetOre(this.level().getBlockState(miningObjectivePos))) {
-                    miningObjectivePos = findSubterraneanOreTarget();
-                }
-
-                if (miningObjectivePos != null) {
-                    targetWorkPos = planExcavationStep(miningObjectivePos);
-                    if (targetWorkPos == null) return;
-                } else {
-                    targetWorkPos = staircaseTarget();
+                    if (miningObjectivePos != null) {
+                        targetWorkPos = planExcavationStep(miningObjectivePos);
+                        if (targetWorkPos == null) return;
+                    } else {
+                        BlockPos explorePos = isInCave() ? findCaveExplorationTarget() : null;
+                        if (explorePos != null) {
+                            moveToward(Vec3.atBottomCenterOf(explorePos), 0.22, false);
+                            nextWorkScanTick = this.tickCount + 20L;
+                            return;
+                        }
+                        targetWorkPos = staircaseTarget();
+                    }
                 }
             }
 
@@ -1085,14 +1118,25 @@ public class CompanionServerPlayer extends ServerPlayer {
         // Iluminacao subterranea com tochas e auto-crafting
         handleTorchPlacement();
 
-        // Deteccao anti-stuck: se travou contra uma parede tentando chegar ao alvo, quebra o bloco frontal
+        // Ao escavar, a primeira parede no caminho vira o alvo antes do movimento.
+        // Isso impede o ciclo de andar/pular contra um bloco solido.
         if (targetWorkPos != null && !canReachWork(targetWorkPos)) {
-            if (this.horizontalCollision || (this.lastWorkPosition != null && this.position().distanceToSqr(this.lastWorkPosition) < 0.04 && workBreakTicks == 0)) {
+            BlockPos obstacle = findMiningObstacleToward(targetWorkPos);
+            if (obstacle != null && !obstacle.equals(targetWorkPos)) {
+                targetWorkPos = obstacle;
+                workBreakTicks = 0;
+                miningProgress = 0;
+                mineStuckTicks = 0;
+            }
+
+            if (this.horizontalCollision) {
                 mineStuckTicks++;
-                if (mineStuckTicks >= 12) {
-                    BlockPos obstacle = findObstacleInFront();
-                    if (obstacle != null && !obstacle.equals(blockPosition().below())) {
-                        targetWorkPos = obstacle;
+                if (mineStuckTicks >= MINING_COLLISION_RECOVERY_TICKS) {
+                    BlockPos recoveryObstacle = findMiningObstacleToward(targetWorkPos);
+                    if (recoveryObstacle != null && !recoveryObstacle.equals(blockPosition().below())) {
+                        targetWorkPos = recoveryObstacle;
+                        workBreakTicks = 0;
+                        miningProgress = 0;
                         mineStuckTicks = 0;
                     } else {
                         targetWorkPos = null;
@@ -1110,11 +1154,18 @@ public class CompanionServerPlayer extends ServerPlayer {
             mineStuckTicks = 0;
         }
 
+        // A recuperação pode ter removido o alvo. Nunca calcule o centro de
+        // um alvo depois de limpá-lo: isso era a origem de travamentos/NPE.
+        if (targetWorkPos == null) {
+            workBreakTicks = 0;
+            return;
+        }
+
         Vec3 targetCenter = new Vec3(targetWorkPos.getX() + 0.5, targetWorkPos.getY() + 0.5, targetWorkPos.getZ() + 0.5);
         lookAtPosition(targetCenter);
 
         if (!canReachWork(targetWorkPos)) {
-            moveToward(targetCenter, 0.24);
+            moveToward(targetCenter, 0.24, false);
         } else {
             Vec3 delta = this.getDeltaMovement();
             this.setDeltaMovement(delta.x * 0.3, delta.y, delta.z * 0.3);
@@ -1177,66 +1228,56 @@ public class CompanionServerPlayer extends ServerPlayer {
      */
     private void mineVeinCascade(BlockPos originPos, BlockState originState) {
         if (originPos == null || originState == null) return;
+        pendingVein.clear();
+        pendingVeinVisited.clear();
+        pendingVeinState = originState;
+        pendingVeinMined = 0;
+        pendingVein.add(originPos.immutable());
+        pendingVeinVisited.add(originPos.immutable());
+        miningController.record("vein-start " + originPos);
+    }
 
-        java.util.Queue<BlockPos> queue = new java.util.ArrayDeque<>();
-        java.util.Set<BlockPos> visited = new java.util.HashSet<>();
+    private boolean processPendingVein() {
+        if (pendingVeinState == null || pendingVein.isEmpty()) {
+            if (pendingVeinState != null) {
+                miningController.record("vein-finished blocks=" + pendingVeinMined);
+                pendingVeinState = null;
+                pendingVeinVisited.clear();
+                pendingVeinMined = 0;
+            }
+            return false;
+        }
 
-        queue.add(originPos);
-        visited.add(originPos);
-
-        int minedCount = 0;
-        int maxVeinBlocks = 48;
-
-        while (!queue.isEmpty() && minedCount < maxVeinBlocks) {
-            BlockPos current = queue.poll();
-
+        int budget = VEIN_BLOCKS_PER_TICK;
+        while (budget-- > 0 && !pendingVein.isEmpty() && pendingVeinMined < MAX_VEIN_BLOCKS) {
+            BlockPos current = pendingVein.removeFirst();
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dz = -1; dz <= 1; dz++) {
                         if (dx == 0 && dy == 0 && dz == 0) continue;
-                        BlockPos neighbor = current.offset(dx, dy, dz);
-
-                        if (neighbor.equals(blockPosition().below())) continue;
-                        if (!visited.add(neighbor)) continue;
-
-                        if (!level().hasChunkAt(neighbor)) continue;
-
+                        if (pendingVeinMined >= MAX_VEIN_BLOCKS || budget <= 0) break;
+                        BlockPos neighbor = current.offset(dx, dy, dz).immutable();
+                        if (neighbor.equals(blockPosition().below()) || !pendingVeinVisited.add(neighbor)
+                                || !level().hasChunkAt(neighbor)) continue;
                         BlockState state = level().getBlockState(neighbor);
-                        if (state.isAir()) continue;
-
-                        if (isMatchingVeinOre(originState, state)) {
-                            boolean nearLava = false;
-                            for (Direction dir : Direction.values()) {
-                                if (level().getBlockState(neighbor.relative(dir)).is(Blocks.LAVA)) {
-                                    nearLava = true;
-                                    break;
-                                }
-                            }
-                            if (nearLava) continue;
-
-                            if (!hasCorrectToolForDrops(state)) {
-                                equipForBlock(state);
-                                if (!hasCorrectToolForDrops(state)) break;
-                            }
-
-                            if (!canUsePlayerBreak(neighbor)) continue;
-
-                            if (this.gameMode.destroyBlock(neighbor)) {
-                                requestDropCollection(neighbor);
-                                harvestedCount++;
-                                minedCount++;
-                                queue.add(neighbor);
-                            }
+                        if (state.isAir() || !isMatchingVeinOre(pendingVeinState, state)
+                                || isDangerousBlock(neighbor) || !canUsePlayerBreak(neighbor)) continue;
+                        equipForBlock(state);
+                        if (!hasCorrectToolForDrops(state)) continue;
+                        if (this.gameMode.destroyBlock(neighbor)) {
+                            requestDropCollection(neighbor);
+                            harvestedCount++;
+                            pendingVeinMined++;
+                            pendingVein.addLast(neighbor);
+                            budget--;
                         }
                     }
                 }
             }
         }
-
-        if (minedCount > 0) {
-            requestDropCollection(originPos);
-            this.swing(InteractionHand.MAIN_HAND, true);
-        }
+        if (pendingVeinMined >= MAX_VEIN_BLOCKS) pendingVein.clear();
+        this.swing(InteractionHand.MAIN_HAND, true);
+        return true;
     }
 
     private boolean isMatchingVeinOre(BlockState originState, BlockState candidateState) {
@@ -1254,24 +1295,61 @@ public class CompanionServerPlayer extends ServerPlayer {
         return false;
     }
 
-    private BlockPos findObstacleInFront() {
-        Direction facing = Direction.fromYRot(getYRot());
+    private void recoverMiningFromWatchdog() {
+        BlockPos previous = targetWorkPos;
+        targetWorkPos = null;
+        workBreakTicks = 0;
+        miningProgress = 0.0f;
+        mineStuckTicks = 0;
+        nextWorkScanTick = this.tickCount + 1L;
+        if (miningDirection != null) miningDirection = miningDirection.getClockWise();
+        miningController.record("recover target=" + previous + " direction=" + miningDirection);
+    }
+
+    /** Resumo curto para diagnóstico em servidor, sem despejar o inventário. */
+    public String getMiningDebugSummary() {
+        return "mode=" + mode
+                + ", pos=" + blockPosition()
+                + ", target=" + targetWorkPos
+                + ", objective=" + miningObjectivePos
+                + ", direction=" + miningDirection
+                + ", breakTicks=" + workBreakTicks
+                + ", progress=" + String.format(Locale.ROOT, "%.2f", miningProgress)
+                + ", oreScan=" + (oreScanActive ? "active" : "idle")
+                + ", veinPending=" + pendingVein.size()
+                + ", " + miningController.debugSummary();
+    }
+
+    private BlockPos findMiningObstacleToward(BlockPos destination) {
+        if (destination == null) return null;
+        BlockPos current = blockPosition();
+        int dx = destination.getX() - current.getX();
+        int dz = destination.getZ() - current.getZ();
+        Direction facing;
+        if (Math.abs(dx) >= Math.abs(dz) && dx != 0) {
+            facing = dx > 0 ? Direction.EAST : Direction.WEST;
+        } else if (dz != 0) {
+            facing = dz > 0 ? Direction.SOUTH : Direction.NORTH;
+        } else {
+            facing = miningDirection != null ? miningDirection : Direction.fromYRot(getYRot());
+        }
+
         BlockPos front = blockPosition().relative(facing);
         BlockPos frontEye = front.above();
 
-        // 1. Testa altura dos olhos para liberar a visao e cabeca
-        BlockState eyeState = level().getBlockState(frontEye);
-        if (!eyeState.isAir() && eyeState.getDestroySpeed(level(), frontEye) >= 0 && hasToolFor(eyeState) && !isDangerousBlock(frontEye)) {
-            return frontEye;
-        }
-
-        // 2. Testa altura dos pes para liberar a passagem no chao
-        BlockState feetState = level().getBlockState(front);
-        if (!feetState.isAir() && feetState.getDestroySpeed(level(), front) >= 0 && hasToolFor(feetState) && !isDangerousBlock(front)) {
-            return front;
-        }
-
+        if (isDiggableMiningObstacle(frontEye)) return frontEye;
+        if (isDiggableMiningObstacle(front)) return front;
         return null;
+    }
+
+    private boolean isDiggableMiningObstacle(BlockPos pos) {
+        if (!level().hasChunkAt(pos) || pos.equals(blockPosition().below())) return false;
+        BlockState state = level().getBlockState(pos);
+        return !state.isAir()
+                && !state.hasBlockEntity()
+                && state.getDestroySpeed(level(), pos) >= 0
+                && hasToolFor(state)
+                && !isDangerousBlock(pos);
     }
 
     private void handleTorchPlacement() {
@@ -1545,30 +1623,58 @@ public class CompanionServerPlayer extends ServerPlayer {
     }
 
     private BlockPos findSubterraneanOreTarget() {
-        BlockPos current = blockPosition();
-        BlockPos best = null;
-        double bestScore = -Double.MAX_VALUE;
-        blockedOre = null;
+        if (!oreScanActive) {
+            if (this.tickCount < nextOreScanTick) return null;
+            oreScanActive = true;
+            oreScanOrigin = blockPosition().immutable();
+            oreScanX = -ORE_SCAN_HORIZONTAL_RADIUS;
+            oreScanY = -ORE_SCAN_DOWN;
+            oreScanZ = -ORE_SCAN_HORIZONTAL_RADIUS;
+            oreScanBest = null;
+            oreScanBestScore = -Double.MAX_VALUE;
+            blockedOre = null;
+            miningController.record("ore-scan-start origin=" + oreScanOrigin);
+        }
 
-        for (BlockPos candidate : BlockPos.betweenClosed(current.offset(-18, -32, -18), current.offset(18, 12, 18))) {
-            if (!level().hasChunkAt(candidate) || candidate.equals(current.below())) continue;
-            BlockState state = level().getBlockState(candidate);
-            if (!isTargetOre(state)) continue;
-            if (state.getDestroySpeed(level(), candidate) < 0) continue;
-
-            if (!hasToolFor(state)) {
-                blockedOre = state;
-                continue;
+        int inspected = 0;
+        while (oreScanActive && inspected++ < ORE_SCAN_BLOCKS_PER_TICK) {
+            BlockPos candidate = oreScanOrigin.offset(oreScanX, oreScanY, oreScanZ);
+            BlockPos current = blockPosition();
+            if (level().hasChunkAt(candidate) && !candidate.equals(current.below())) {
+                BlockState state = level().getBlockState(candidate);
+                if (isTargetOre(state) && state.getDestroySpeed(level(), candidate) >= 0) {
+                    if (!hasToolFor(state)) {
+                        blockedOre = state;
+                    } else {
+                        double distSq = candidate.distSqr(current);
+                        double verticalPenalty = Math.abs(candidate.getY() - current.getY()) * 8.0;
+                        double score = getOreWeight(state) * 10.0 - distSq - verticalPenalty;
+                        if (score > oreScanBestScore) {
+                            oreScanBestScore = score;
+                            oreScanBest = candidate.immutable();
+                        }
+                    }
+                }
             }
-
-            double distSq = candidate.distSqr(current);
-            double score = getOreWeight(state) * 25.0 - distSq;
-            if (score > bestScore) {
-                bestScore = score;
-                best = candidate.immutable();
+            oreScanZ++;
+            if (oreScanZ > ORE_SCAN_HORIZONTAL_RADIUS) {
+                oreScanZ = -ORE_SCAN_HORIZONTAL_RADIUS;
+                oreScanY++;
+                if (oreScanY > ORE_SCAN_UP) {
+                    oreScanY = -ORE_SCAN_DOWN;
+                    oreScanX++;
+                    if (oreScanX > ORE_SCAN_HORIZONTAL_RADIUS) oreScanActive = false;
+                }
             }
         }
-        return best;
+
+        if (oreScanActive) return null;
+        nextOreScanTick = this.tickCount + ORE_SCAN_COOLDOWN_TICKS;
+        BlockPos result = oreScanBest;
+        miningController.record("ore-scan-finish target=" + result);
+        oreScanOrigin = null;
+        oreScanBest = null;
+        return result;
     }
 
     private BlockPos findAdjacentOre(BlockPos origin) {
@@ -1969,6 +2075,16 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
             lookAtPosition(pos.getCenter());
             return pos;
+        }
+        // O espaço já está aberto: avançar para o próximo degrau em vez de
+        // retornar null para sempre. O alvo só é consumido depois que o NPC
+        // realmente chega à posição.
+        Vec3 destination = Vec3.atBottomCenterOf(stairDestination);
+        if (distanceToSqr(destination) > 0.75) {
+            lookAtPosition(destination);
+            moveToward(destination, 0.20, false);
+        } else {
+            stairDestination = stairDestination.relative(miningDirection);
         }
         return null;
     }
@@ -2467,6 +2583,15 @@ public class CompanionServerPlayer extends ServerPlayer {
             this.stairApproachTicks = 0;
             this.stairDestination = null;
             this.miningDirection = null;
+            this.mineStuckTicks = 0;
+            this.nextOreScanTick = 0L;
+            this.oreScanActive = false;
+            this.oreScanOrigin = null;
+            this.pendingVein.clear();
+            this.pendingVeinVisited.clear();
+            this.pendingVeinState = null;
+            this.pendingVeinMined = 0;
+            this.miningController.reset();
             if (dataEntity != null) {
                 dataEntity.setMode(mode);
             }
@@ -2482,6 +2607,14 @@ public class CompanionServerPlayer extends ServerPlayer {
         this.targetWorkPos = null;
         this.targetVeinPos = null;
         this.miningObjectivePos = null;
+        this.nextOreScanTick = 0L;
+        this.oreScanActive = false;
+        this.oreScanOrigin = null;
+        this.pendingVein.clear();
+        this.pendingVeinVisited.clear();
+        this.pendingVeinState = null;
+        this.pendingVeinMined = 0;
+        this.miningController.reset();
     }
 
     public boolean isFarmTillEnabled() {
