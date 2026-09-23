@@ -12,6 +12,7 @@ import com.thyagotoledo.companions.neoforge.entity.NeoForgeCompanionEntity;
 import com.thyagotoledo.companions.neoforge.service.NeoForgePermissionService;
 import com.thyagotoledo.companions.neoforge.service.MiningController;
 import com.thyagotoledo.companions.neoforge.service.MiningProgressWatchdog;
+import com.thyagotoledo.companions.neoforge.service.MiningScanBudget;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
@@ -121,6 +122,8 @@ public class CompanionServerPlayer extends ServerPlayer {
     private int stalledWorkTicks;
     private int consecutiveStalls = 0;
     private int mineStuckTicks = 0;
+    private BlockPos recoveryObjective;
+    private int miningRecoveryAttempts;
     private long nextOreScanTick = 0L;
     private boolean oreScanActive;
     private BlockPos oreScanOrigin;
@@ -1132,8 +1135,14 @@ public class CompanionServerPlayer extends ServerPlayer {
             if (this.horizontalCollision) {
                 mineStuckTicks++;
                 if (mineStuckTicks >= MINING_COLLISION_RECOVERY_TICKS) {
+                    if (recoveryObjective == null || !recoveryObjective.equals(miningObjectivePos)) {
+                        recoveryObjective = miningObjectivePos == null ? targetWorkPos.immutable() : miningObjectivePos.immutable();
+                        miningRecoveryAttempts = 0;
+                    }
+                    miningRecoveryAttempts++;
                     BlockPos recoveryObstacle = findMiningObstacleToward(targetWorkPos);
-                    if (recoveryObstacle != null && !recoveryObstacle.equals(blockPosition().below())) {
+                    if (miningRecoveryAttempts <= 3 && recoveryObstacle != null
+                            && !recoveryObstacle.equals(blockPosition().below())) {
                         targetWorkPos = recoveryObstacle;
                         workBreakTicks = 0;
                         miningProgress = 0;
@@ -1141,6 +1150,8 @@ public class CompanionServerPlayer extends ServerPlayer {
                     } else {
                         targetWorkPos = null;
                         miningObjectivePos = null;
+                        recoveryObjective = null;
+                        miningRecoveryAttempts = 0;
                         mineStuckTicks = 0;
                         if (miningDirection != null) {
                             miningDirection = miningDirection.getClockWise();
@@ -1152,6 +1163,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             }
         } else {
             mineStuckTicks = 0;
+            recoveryObjective = null;
+            miningRecoveryAttempts = 0;
         }
 
         // A recuperação pode ter removido o alvo. Nunca calcule o centro de
@@ -1301,6 +1314,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         workBreakTicks = 0;
         miningProgress = 0.0f;
         mineStuckTicks = 0;
+        recoveryObjective = null;
+        miningRecoveryAttempts = 0;
         nextWorkScanTick = this.tickCount + 1L;
         if (miningDirection != null) miningDirection = miningDirection.getClockWise();
         miningController.record("recover target=" + previous + " direction=" + miningDirection);
@@ -1637,7 +1652,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         }
 
         int inspected = 0;
-        while (oreScanActive && inspected++ < ORE_SCAN_BLOCKS_PER_TICK) {
+        while (oreScanActive && inspected++ < ORE_SCAN_BLOCKS_PER_TICK
+                && MiningScanBudget.tryAcquire(this.tickCount)) {
             BlockPos candidate = oreScanOrigin.offset(oreScanX, oreScanY, oreScanZ);
             BlockPos current = blockPosition();
             if (level().hasChunkAt(candidate) && !candidate.equals(current.below())) {
@@ -2584,6 +2600,8 @@ public class CompanionServerPlayer extends ServerPlayer {
             this.stairDestination = null;
             this.miningDirection = null;
             this.mineStuckTicks = 0;
+            this.recoveryObjective = null;
+            this.miningRecoveryAttempts = 0;
             this.nextOreScanTick = 0L;
             this.oreScanActive = false;
             this.oreScanOrigin = null;
@@ -2608,6 +2626,8 @@ public class CompanionServerPlayer extends ServerPlayer {
         this.targetVeinPos = null;
         this.miningObjectivePos = null;
         this.nextOreScanTick = 0L;
+        this.recoveryObjective = null;
+        this.miningRecoveryAttempts = 0;
         this.oreScanActive = false;
         this.oreScanOrigin = null;
         this.pendingVein.clear();

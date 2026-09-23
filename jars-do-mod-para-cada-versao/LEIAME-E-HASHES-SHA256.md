@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 com watchdog, scanner incremental, recuperacao e veios limitados, compilado em 2026-09-22 | 307.621 bytes | `CA3463BC77D2DD49E8795DC7D92185269150577FF377463CDB222F9CEBED0B40` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com watchdog, scanner incremental, recuperacao e veios limitados, compilado em 2026-09-22 | 307.664 bytes | `E8DD0D821BE24DF792B4B7D322AF922206A2DB346EB0EB3128CA4DD6DB58042B` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 com watchdog, scanner incremental global, recuperacao limitada e veios por fila, compilado em 2026-09-22 | 308.574 bytes | `637EB0BADFE043C9DA3EEF8B7DC31CBDE7DE4AAEBCE356C988625A4B619DA34D` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com watchdog, scanner incremental global, recuperacao limitada e veios por fila, compilado em 2026-09-22 | 308.616 bytes | `2E41090A86FC5428F82C537E45B4C5E32CBBC8904CCF5BC62937AC7A8B1B3575` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0 | 1.20.1 | Padrao / `reobfJar` compilado em 2026-09-21 | 172.929 bytes | `3518CC71DCE01E547663BFBC44CD0FC5249F913EDD16616BDFE005E4244BE5BC` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / compilado em 2026-09-21 | 14.235 bytes | `E8FA84D3E86E825EE6D80698AAFE57BE88DF50296A5D05C37BD5347831D74A4B` |
 
@@ -132,9 +132,9 @@ Os artefatos foram copiados para as pastas de release candidate correspondentes.
 - Instancia: `C:\Users\thyag\curseforge\minecraft\Instances\TesteMineFrinds`
 - Loader: NeoForge 21.1.251 / Minecraft 1.21.1
 - JAR instalado: `mods/companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar`
-- Backup do JAR anterior: `backups/minefriends-mining-m20260922-215133/`
-- Hash SHA-256 instalado: `CA3463BC77D2DD49E8795DC7D92185269150577FF377463CDB222F9CEBED0B40`
-- Hash SHA-256 do complemento Tensura instalado: `E8DD0D821BE24DF792B4B7D322AF922206A2DB346EB0EB3128CA4DD6DB58042B`
+- Backup do JAR anterior: `backups/minefriends-mining-m2-20260922-215620/`
+- Hash SHA-256 instalado: `637EB0BADFE043C9DA3EEF8B7DC31CBDE7DE4AAEBCE356C988625A4B619DA34D`
+- Hash SHA-256 do complemento Tensura instalado: `2E41090A86FC5428F82C537E45B4C5E32CBBC8904CCF5BC62937AC7A8B1B3575`
 - Diagnóstico: `/companion debug mining` exibe alvo, objetivo, scanner incremental, fila de veio e watchdog.
 
 O JAR anterior foi movido para o backup antes da substituicao. Nenhum JAR de outro loader foi colocado nessa instancia.
