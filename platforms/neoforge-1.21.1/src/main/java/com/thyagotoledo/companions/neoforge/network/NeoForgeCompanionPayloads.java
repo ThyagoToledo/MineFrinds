@@ -311,7 +311,7 @@ public final class NeoForgeCompanionPayloads {
      * Ouvinte oficial do evento RegisterPayloadHandlersEvent do NeoForge 1.21.1.
      */
     public static void onRegisterPayloadHandlers(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar registrar = event.registrar(MODID).versioned("1.1.0");
+        PayloadRegistrar registrar = event.registrar(MODID).versioned("1.1.0").optional();
         com.thyagotoledo.companions.neoforge.service.RemoteViewService.register(registrar);
 
         registrar.playToServer(
