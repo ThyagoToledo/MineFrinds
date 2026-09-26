@@ -14,7 +14,7 @@ Companheiro inteligente com comandos bilingues, protecao de terreno compativel c
 [[dependencies.companions]]
     modId="neoforge"
     type="required"
-    versionRange="[21.1.248,)"
+    versionRange="[21.1,)"
     ordering="NONE"
     side="BOTH"
 

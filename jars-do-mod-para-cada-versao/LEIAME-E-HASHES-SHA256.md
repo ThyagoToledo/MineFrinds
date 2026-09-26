@@ -16,8 +16,8 @@ C:\Users\thyag\Projects\minecraft-companheiros\jars-do-mod-para-cada-versao\
 
 | Pacote JAR | Loader | Minecraft | Edicao / Alvo | Tamanho | SHA-256 |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Padrao / Alpha.2 com watchdog, scanner incremental global, recuperacao limitada e veios por fila, compilado em 2026-09-22 | 308.574 bytes | `637EB0BADFE043C9DA3EEF8B7DC31CBDE7DE4AAEBCE356C988625A4B619DA34D` |
-| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1.251 | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com watchdog, scanner incremental global, recuperacao limitada e veios por fila, compilado em 2026-09-22 | 308.616 bytes | `2E41090A86FC5428F82C537E45B4C5E32CBBC8904CCF5BC62937AC7A8B1B3575` |
+| `companions-neoforge-1.21.1-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1+ (21.1.244+) | 1.21.1 | Padrao / Alpha.2 com suporte universal NeoForge 21.1+, compilado em 2026-09-26 | 308.569 bytes | `4D89261EFCD7837EC0CCE136CB551CE42154AE0CA59F669C9852D2989AEE15F4` |
+| `companions-neoforge-1.21.1-tensura-neo-otherworld-0.2.0-alpha.2-1.21.1.jar` | NeoForge 21.1+ (21.1.244+) | 1.21.1 | Tensura Neo Otherworld / Alpha.2 com suporte universal NeoForge 21.1+, compilado em 2026-09-26 | 308.612 bytes | `040BDBFDAF62D3AC287C7C708F076FA65C54C4EE5D9909A9EF58EB13DB1242DF` |
 | `companions-forge-1.20.1-0.1.0.jar` | Forge 47.4.0 | 1.20.1 | Padrao / `reobfJar` compilado em 2026-09-21 | 172.929 bytes | `3518CC71DCE01E547663BFBC44CD0FC5249F913EDD16616BDFE005E4244BE5BC` |
 | `companions-forge-1.12.2-0.1.0.jar` | Forge 14.23.5.2860 | 1.12.2 | Legada / compilado em 2026-09-21 | 14.235 bytes | `E8FA84D3E86E825EE6D80698AAFE57BE88DF50296A5D05C37BD5347831D74A4B` |
 
